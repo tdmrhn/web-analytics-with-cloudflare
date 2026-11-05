@@ -1,9 +1,8 @@
 # Changelog
 
-## [0.1.2]
+## [0.2] - 2026-11-05
 
 - Renamed to Easy Analytics with Cloudflare RUM
-- Removed the Troubleshooting tool from Settings
 - Primary color setting: the accent color and chart colors follow the color you choose
 - Internal function and class names carry a unique prefix (`eacfa_`, `EACFA_`)
 - Stylesheet uses design tokens with relative units (rem, em) and fluid sizes (clamp)
