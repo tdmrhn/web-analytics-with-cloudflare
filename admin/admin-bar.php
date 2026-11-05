@@ -21,11 +21,11 @@ class EACFA_Analytics_Admin_Bar {
 
     public function __construct() {
         add_action('admin_bar_menu', array($this, 'add_admin_bar_item'), 100);
-        add_action('wp_head', array($this, 'print_styles'));
-        add_action('admin_head', array($this, 'print_styles'));
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
         // Printed after the bar has been built (it renders late on the public site).
-        add_action('wp_footer', array($this, 'print_refresh_script'), 1002);
-        add_action('admin_footer', array($this, 'print_refresh_script'), 101);
+        add_action('wp_footer', array($this, 'print_refresh_config'), 1002);
+        add_action('admin_footer', array($this, 'print_refresh_config'), 101);
     }
 
     /**
@@ -130,67 +130,30 @@ class EACFA_Analytics_Admin_Bar {
         ));
     }
 
+    public function enqueue_assets() {
+        if (!is_admin_bar_showing() || !current_user_can('manage_options')) {
+            return;
+        }
+
+        wp_enqueue_style('eacfa-admin-bar', EACFA_PLUGIN_URL . 'assets/css/admin-bar.css', array(), EACFA_Live::asset_version('assets/css/admin-bar.css'));
+        wp_enqueue_script('eacfa-live', EACFA_PLUGIN_URL . 'assets/js/cfa-live.js', array(), EACFA_Live::asset_version('assets/js/cfa-live.js'), true);
+    }
+
     /**
-     * After the page has loaded: fetch the number and update the counter in place.
-     * If it fails, the reason is shown when hovering the counter.
+     * Footer: settings for the counter refresh, read by cfa-live.js once the page has loaded.
      */
-    public function print_refresh_script() {
+    public function print_refresh_config() {
         if (!$this->refresh || !current_user_can('manage_options')) {
             return;
         }
-        ?>
-        <script>
-        (function () {
-            var num = document.querySelector('#wp-admin-bar-cf-analytics .cfab-num');
-            if (!num || !window.fetch || !window.URLSearchParams) { return; }
 
-            var body = new URLSearchParams();
-            body.append('action', 'cf_analytics_bar_count');
-            body.append('nonce', <?php echo wp_json_encode(wp_create_nonce('cf_analytics_bar_count')); ?>);
-            body.append('scope', <?php echo wp_json_encode($this->refresh['scope']); ?>);
-            body.append('path', <?php echo wp_json_encode($this->refresh['path']); ?>);
-
-            function set(sel, text) {
-                var el = document.querySelector(sel);
-                if (el) { el.textContent = text; }
-            }
-
-            function run() {
-                fetch(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, { method: 'POST', credentials: 'same-origin', body: body })
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) {
-                        if (res && res.success) {
-                            set('#wp-admin-bar-cf-analytics .cfab-num', res.data.views);
-                            set('#wp-admin-bar-cf-analytics-views .cfab-views', res.data.views);
-                            set('#wp-admin-bar-cf-analytics-visits .cfab-visits', res.data.visits);
-                        } else {
-                            var link = document.querySelector('#wp-admin-bar-cf-analytics > a');
-                            if (link) { link.title = 'Could not load the count: ' + ((res && res.data) ? res.data : 'unknown error'); }
-                        }
-                    })
-                    .catch(function () {});
-            }
-
-            function later() { setTimeout(run, 300); }
-
-            if (document.readyState === 'complete') { later(); } else { window.addEventListener('load', later); }
-        })();
-        </script>
-        <?php
-    }
-
-    public function print_styles() {
-        if (!is_admin_bar_showing()) {
-            return;
-        }
-        ?>
-        <style>
-            #wpadminbar #wp-admin-bar-cf-analytics > .ab-item { display: flex; align-items: center; gap: 6px; }
-            #wpadminbar .cfab-icon { display: inline-block; width: 16px; height: 16px; background: currentColor; opacity: .85;
-                -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 9.5a4.25 4.25 0 0 1 .5 8.5H7z'/></svg>") center / contain no-repeat;
-                mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 9.5a4.25 4.25 0 0 1 .5 8.5H7z'/></svg>") center / contain no-repeat; }
-        </style>
-        <?php
+        EACFA_Live::config_node('eacfa-bar-config', array(
+            'action'  => 'cf_analytics_bar_count',
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('cf_analytics_bar_count'),
+            'scope'   => $this->refresh['scope'],
+            'path'    => $this->refresh['path'],
+        ));
     }
 }
 

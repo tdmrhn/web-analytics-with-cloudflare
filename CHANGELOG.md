@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.3]
+
+- Fixed a false "could not be saved" message for the refresh interval
+
+## [0.2.2]
+
+- All scripts and styles are loaded with WordPress enqueue functions; no inline script or style blocks remain
+
 ## [0.2] - 2026-11-05
 
 - Renamed to Easy Analytics with Cloudflare RUM

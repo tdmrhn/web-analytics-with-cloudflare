@@ -3,7 +3,7 @@ Contributors: dmrhn
 Tags: cloudflare, web analytics, core web vitals, performance, statistics
 Requires at least: 5.3
 Tested up to: 7.1
-Stable tag: 0.2.1
+Stable tag: 0.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -79,6 +79,10 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 * **Cloudflare's terms and privacy policy:** [Terms of Use](https://www.cloudflare.com/website-terms/), [Privacy Policy](https://www.cloudflare.com/privacypolicy/).
 
 == Changelog ==
+
+= 0.3 =
+* All scripts and styles are loaded with WordPress enqueue functions; no inline script or style blocks remain
+* Fixed a false "could not be saved" message for the refresh interval
 
 = 0.2 =
 * Renamed to Easy Analytics with Cloudflare RUM

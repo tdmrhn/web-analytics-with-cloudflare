@@ -303,27 +303,20 @@ add_action('admin_menu', function () {
 
 add_action('admin_enqueue_scripts', function ($hook) {
     $is_plugin_page = strpos($hook, 'cf-analytics') !== false;
-
-    if ($is_plugin_page || $hook === 'index.php') {
-        wp_enqueue_style('cf-analytics-admin', EACFA_PLUGIN_URL . 'assets/css/admin.css', array(), eacfa_asset_version('assets/css/admin.css'));
-        wp_add_inline_style('cf-analytics-admin', eacfa_palette_css());
+    if (!$is_plugin_page && $hook !== 'index.php') {
+        return;
     }
-	if ($is_plugin_page && eacfa_param('section') === 'settings') {
-    wp_enqueue_style('wp-components');
-    wp_enqueue_script(
-        'eacfa-color',
-        EACFA_PLUGIN_URL . 'assets/js/cfa-color.js',
-        array('wp-element', 'wp-components', 'wp-i18n'),
-        eacfa_asset_version('assets/js/cfa-color.js'),
-        true
-    );
-}
 
-    $section = eacfa_param('section', 'overview');
-    $needs_chart = ($hook === 'index.php') || ($hook === 'dashboard_page_cf-analytics' && $section === 'overview');
+    wp_enqueue_style('eacfa-admin', EACFA_PLUGIN_URL . 'assets/css/admin.css', array(), eacfa_asset_version('assets/css/admin.css'));
+    wp_add_inline_style('eacfa-admin', eacfa_palette_css());
 
-    if ($needs_chart) {
-        wp_enqueue_script('cfa-chart', EACFA_PLUGIN_URL . 'assets/js/cfa-chart.js', array(), eacfa_asset_version('assets/js/cfa-chart.js'), false);
+    wp_enqueue_script('eacfa-chart', EACFA_PLUGIN_URL . 'assets/js/cfa-chart.js', array(), eacfa_asset_version('assets/js/cfa-chart.js'), true);
+    wp_enqueue_script('eacfa-dashboard', EACFA_PLUGIN_URL . 'assets/js/cfa-dashboard.js', array('eacfa-chart'), eacfa_asset_version('assets/js/cfa-dashboard.js'), true);
+
+    if ($is_plugin_page && eacfa_param('section') === 'settings') {
+        wp_enqueue_style('wp-components');
+        wp_enqueue_script('eacfa-color', EACFA_PLUGIN_URL . 'assets/js/cfa-color.js', array('wp-element', 'wp-components', 'wp-i18n'), eacfa_asset_version('assets/js/cfa-color.js'), true);
+        wp_enqueue_script('eacfa-settings', EACFA_PLUGIN_URL . 'assets/js/cfa-settings.js', array('jquery'), eacfa_asset_version('assets/js/cfa-settings.js'), true);
     }
 });
 
@@ -493,49 +486,6 @@ function eacfa_referrer_label($row) {
 
 
 /**
- * Chart code, printed once per page. eacfaChartInit() can be called again after a section has been
- * injected by the deferred loader.
- */
-function eacfa_chart_script() {
-    ?>
-    <script>
-    window.eacfaChartInit = function () {
-        var el = document.getElementById('cfa-chart');
-        var dataEl = document.getElementById('cfa-chart-data');
-        if (!el || !dataEl || typeof EacfaChart === 'undefined') { return; }
-
-        var d = JSON.parse(dataEl.textContent);
-
-        if (el._cfaChart) { el._cfaChart.destroy(); }
-
-        var chart = new EacfaChart(el, {
-            label: 'Visits and page views over time',
-            labels: d.labels,
-            datasets: [
-                { label: 'Visits',     data: d.visits, color: '<?php echo esc_js(eacfa_palette()['series_visits']); ?>' },
-                { label: 'Page views', data: d.views,  color: '<?php echo esc_js(eacfa_palette()['series_views']); ?>' }
-            ],
-            dotRadius: d.labels.length <= 31 ? 3 : 0,
-            lineWidth: 2.5,
-            fontSize: 12,
-            maxXTicks: 8
-        });
-        el._cfaChart = chart;
-
-        document.querySelectorAll('#cfa-legend button').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var on = chart.toggle(parseInt(btn.getAttribute('data-i'), 10));
-                btn.classList.toggle('is-on', on);
-            });
-        });
-    };
-
-    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', window.eacfaChartInit); } else { window.eacfaChartInit(); }
-    </script>
-    <?php
-}
-
-/**
  * Placeholder shown while a section loads in the background
  */
 function eacfa_skeleton() {
@@ -633,6 +583,7 @@ function eacfa_analytics_page() {
     $ranges = EACFA_Live::ranges();
 
     $deferred = false;
+    $updated = '';
 
     $theme = eacfa_current_theme();
     $args = array('section' => $section, 'range' => $range);
@@ -746,16 +697,6 @@ function eacfa_analytics_page() {
                     }
 
                     $updated = $deferred ? 'loading…' : eacfa_updated_text($meta);
-                    if ($updated !== '') {
-                        ?>
-                        <script>
-                        (function () {
-                            var el = document.getElementById('cfa-updated');
-                            if (el) { el.textContent = <?php echo wp_json_encode('· ' . $updated); ?>; }
-                        })();
-                        </script>
-                        <?php
-                    }
                 }
                 ?>
 
@@ -766,73 +707,19 @@ function eacfa_analytics_page() {
         </div>
     </div>
     <?php
-    ?>
-    <script>
-    (function () {
-        var link = document.querySelector('.cfa-theme-toggle');
-        if (!link) { return; }
-
-        // With the "System" theme the page follows the device, so decide at click time.
-        link.addEventListener('click', function () {
-            var body = document.body;
-            var dark = body.classList.contains('cfa-theme-dark') ||
-                (body.classList.contains('cfa-theme-auto') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            link.href = dark ? link.getAttribute('data-to-light') : link.getAttribute('data-to-dark');
-        });
-    })();
-    </script>
-    <?php
-
-    if ($section === 'overview') {
-        eacfa_chart_script();
-    }
-
-    if ($deferred) {
-        ?>
-        <script>
-        (function () {
-            function load() {
-                var box = document.getElementById('cfa-deferred');
-                if (!box || !window.fetch || !window.URLSearchParams) { return; }
-
-                var body = new URLSearchParams();
-                body.append('action', 'cf_analytics_section');
-                body.append('nonce', <?php echo wp_json_encode(wp_create_nonce('cf_analytics_section')); ?>);
-                body.append('section', <?php echo wp_json_encode($section); ?>);
-                body.append('range', <?php echo wp_json_encode($range); ?>);
-
-                fetch(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, { method: 'POST', credentials: 'same-origin', body: body })
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) {
-                        var upd = document.getElementById('cfa-updated');
-                        if (res && res.success) {
-                            box.innerHTML = res.data.html;
-                            box.removeAttribute('id');
-                            if (upd) { upd.textContent = res.data.updated ? '\u00B7 ' + res.data.updated : ''; }
-                            if (window.eacfaChartInit) { window.eacfaChartInit(); }
-
-                            if (res.data.jobs && res.data.jobs.length) {
-                                var more = new URLSearchParams();
-                                more.append('action', 'cf_analytics_refresh');
-                                more.append('nonce', res.data.refresh_nonce);
-                                more.append('jobs', JSON.stringify(res.data.jobs));
-                                fetch(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, { method: 'POST', credentials: 'same-origin', body: more }).catch(function () {});
-                            }
-                        } else {
-                            box.innerHTML = '<div class="cfa-notice is-error"><strong>Couldn\u2019t load this data.</strong> ' + ((res && res.data) ? String(res.data).replace(/[<>&]/g, '') : 'Please try again.') + '</div>';
-                            if (upd) { upd.textContent = ''; }
-                        }
-                    })
-                    .catch(function () {
-                        box.innerHTML = '<div class="cfa-notice is-error"><strong>Couldn\u2019t load this data.</strong> Request failed. Use Refresh to try again.</div>';
-                    });
-            }
-
-            if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', load); } else { load(); }
-        })();
-        </script>
-        <?php
-    }
+    EACFA_Live::config_node('eacfa-dashboard-config', array(
+        'chart'        => ($section === 'overview'),
+        'colors'       => array(
+            'visits' => eacfa_palette()['series_visits'],
+            'views'  => eacfa_palette()['series_views'],
+        ),
+        'updated'      => ($updated !== '') ? '· ' . $updated : '',
+        'deferred'     => (bool) $deferred,
+        'section'      => $section,
+        'range'        => $range,
+        'sectionNonce' => wp_create_nonce('cf_analytics_section'),
+        'ajaxUrl'      => admin_url('admin-ajax.php'),
+    ));
 }
 
 /* ----------------------------------------------------------------------
@@ -903,10 +790,9 @@ function eacfa_render_overview($range) {
                 <button type="button" class="is-on" data-i="1"><i style="background:<?php echo esc_attr(eacfa_palette()['series_views']); ?>"></i>Page views</button>
             </div>
         </div>
-        <div class="cfa-chart"><div id="cfa-chart"></div></div>
+        <div class="cfa-chart"><div id="cfa-chart" data-chart="<?php echo esc_attr(wp_json_encode($chart)); ?>"></div></div>
     </section>
 
-    <script type="application/json" id="cfa-chart-data"><?php echo wp_json_encode($chart); ?></script>
 
     <div class="cfa-grid">
         <?php

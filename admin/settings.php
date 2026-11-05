@@ -397,11 +397,6 @@ function eacfa_render_settings() {
                 <p class="cfa-hint">Pages always open instantly with the data already saved. This sets how old that data may get before the next visit refreshes it in the background, after the page has loaded. Nothing runs on a timer. &ldquo;Manual&rdquo; keeps what you see until you click Refresh in the dashboard header (a new day still starts with a new lookup). The default is 10 min.</p>
                 <noscript><button type="submit" class="cfa-btn">Save</button></noscript>
             </form>
-            <script>
-            document.querySelectorAll('#cf-refresh-form input[type="radio"]').forEach(function (input) {
-                input.addEventListener('change', function () { input.form.submit(); });
-            });
-            </script>
         </section>
 
         <section class="cfa-card cfa-pad">
@@ -421,11 +416,6 @@ function eacfa_render_settings() {
                 <p class="cfa-hint">Saves as soon as you pick an option. Applies to the dashboard, the dashboard widget and this page, for your user only. &ldquo;System&rdquo; follows your device setting.</p>
                 <noscript><button type="submit" class="cfa-btn">Save</button></noscript>
             </form>
-            <script>
-            document.querySelectorAll('#cf-appearance-form input[type="radio"]').forEach(function (input) {
-                input.addEventListener('change', function () { input.form.submit(); });
-            });
-            </script>
         </section>
 
         <section class="cfa-card cfa-pad">
@@ -458,69 +448,10 @@ function eacfa_render_settings() {
         <?php endif; ?>
     </div>
 
-    <script>
-    jQuery(function ($) {
-        function esc(s) { return $('<div>').text(s).html(); }
-
-        $('#cf-load-zones').on('click', function () {
-            var token = $('#cf_api_token').val();
-            var $btn = $(this).prop('disabled', true).text('Loading...');
-            var $box = $('#cf-zones');
-
-            $.post(ajaxurl, {
-                action: 'cf_analytics_get_zones',
-                nonce: '<?php echo esc_js(wp_create_nonce('cf_analytics_get_zones')); ?>',
-                token: token
-            }).done(function (res) {
-                if (!res.success) { $box.prop('hidden', false).html('<div class="cfa-notice is-error">' + esc(res.data) + '</div>'); return; }
-
-                var zones = res.data.zones;
-                if (!zones.length) { $box.prop('hidden', false).html('<div class="cfa-notice is-error">This token cannot see any zones. Check its Zone Resources.</div>'); return; }
-
-                var html = '';
-                zones.forEach(function (z) {
-                    html += '<button type="button" class="cfa-zone" data-id="' + esc(z.id) + '"><strong>' + esc(z.name) + '</strong><code>' + esc(z.id) + '</code></button>';
-                });
-                $box.prop('hidden', false).html(html);
-
-                if (res.data.match) {
-                    $('#cf_zone_id').val(res.data.match);
-                    $box.find('[data-id="' + res.data.match + '"]').addClass('is-picked');
-                }
-            }).fail(function () {
-                $box.prop('hidden', false).html('<div class="cfa-notice is-error">Request failed. Please try again.</div>');
-            }).always(function () {
-                $btn.prop('disabled', false).text('Load my zones');
-            });
-        });
-
-        $('#cf-zones').on('click', '.cfa-zone', function () {
-            $('#cf_zone_id').val($(this).data('id'));
-            $(this).addClass('is-picked').siblings().removeClass('is-picked');
-        });
-
-        $('#cf-test-connection').on('click', function () {
-            var $btn = $(this).prop('disabled', true).text('Testing...');
-            var $list = $('#cf-checks').prop('hidden', true).empty();
-
-            $.post(ajaxurl, {
-                action: 'cf_analytics_test_connection',
-                nonce: '<?php echo esc_js(wp_create_nonce('cf_analytics_test_connection')); ?>'
-            }).done(function (res) {
-                if (!res.success) { $list.prop('hidden', false).html('<li class="is-fail"><span>&#10007;</span><div><strong>Test failed</strong><small>' + esc(res.data) + '</small></div></li>'); return; }
-
-                res.data.checks.forEach(function (c) {
-                    $list.append('<li class="' + (c.ok ? 'is-ok' : 'is-fail') + '"><span>' + (c.ok ? '&#10003;' : '&#10007;') + '</span><div><strong>' + esc(c.label) + '</strong><small>' + esc(c.detail) + '</small></div></li>');
-                });
-                $list.prop('hidden', false);
-            }).fail(function () {
-                $list.prop('hidden', false).html('<li class="is-fail"><span>&#10007;</span><div><strong>Request failed</strong><small>Please try again.</small></div></li>');
-            }).always(function () {
-                $btn.prop('disabled', false).text('Test connection');
-            });
-        });
-    });
-    </script>
+    <?php EACFA_Live::config_node('eacfa-settings-config', array(
+        'zonesNonce' => wp_create_nonce('cf_analytics_get_zones'),
+        'testNonce'  => wp_create_nonce('cf_analytics_test_connection'),
+    )); ?>
     <?php
 
     return array('fetched_at' => 0);

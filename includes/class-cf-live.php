@@ -250,35 +250,37 @@ class EACFA_Live {
     }
 
     /**
-     * Footer script: once the page has finished loading, ask the server to refresh the data it
-     * had to serve from cache. The refresh happens in its own request, so it can't slow the page.
+     * Print settings for a static script as a hidden element. The value is JSON in an escaped
+     * attribute, so no script code is printed inline.
      */
-    public static function print_refresh_script() {
+    public static function config_node($id, $config) {
+        echo '<span id="' . esc_attr($id) . '" hidden data-config="' . esc_attr(wp_json_encode($config)) . '"></span>';
+    }
+
+    /**
+     * Version string for a bundled asset (plugin version plus file modification time).
+     */
+    public static function asset_version($relative_path) {
+        $file = EACFA_PLUGIN_DIR . $relative_path;
+
+        return EACFA_VERSION . (file_exists($file) ? '-' . filemtime($file) : '');
+    }
+
+    /**
+     * Footer: once the page has finished loading, the refresh script asks the server to refresh
+     * the data it had to serve from cache. The refresh happens in its own request.
+     */
+    public static function print_refresh_config() {
         if (!self::$queue || !current_user_can('manage_options')) {
             return;
         }
 
-        $jobs = wp_json_encode(array_values(self::$queue));
-        ?>
-        <script>
-        (function () {
-            if (!window.fetch || !window.URLSearchParams) { return; }
-
-            var body = new URLSearchParams();
-            body.append('action', 'cf_analytics_refresh');
-            body.append('nonce', <?php echo wp_json_encode(wp_create_nonce('cf_analytics_refresh')); ?>);
-            body.append('jobs', <?php echo wp_json_encode($jobs); ?>);
-
-            function run() {
-                fetch(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, { method: 'POST', credentials: 'same-origin', body: body }).catch(function () {});
-            }
-
-            function later() { setTimeout(run, 800); }
-
-            if (document.readyState === 'complete') { later(); } else { window.addEventListener('load', later); }
-        })();
-        </script>
-        <?php
+        self::config_node('eacfa-live-config', array(
+            'action'  => 'cf_analytics_refresh',
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('cf_analytics_refresh'),
+            'jobs'    => wp_json_encode(array_values(self::$queue)),
+        ));
     }
 
     /**
@@ -352,7 +354,14 @@ class EACFA_Live {
      */
     private static function option_holds($name, $value) {
         self::forget_option($name);
-        return maybe_serialize(get_option($name, null)) === maybe_serialize($value);
+        $stored = get_option($name, null);
+
+        // WordPress keeps scalars as text (600 comes back as "600"), so compare them as text.
+        if (is_scalar($value) && is_scalar($stored)) {
+            return (string) $stored === (string) $value;
+        }
+
+        return maybe_serialize($stored) === maybe_serialize($value);
     }
 
     /**
@@ -1112,8 +1121,8 @@ class EACFA_Live {
 
 // Refresh queued data after the page has loaded. The admin bar renders late on the public site
 // (wp_footer priority 1000), so the script is printed after it.
-add_action('admin_footer', array('EACFA_Live', 'print_refresh_script'), 100);
-add_action('wp_footer', array('EACFA_Live', 'print_refresh_script'), 1001);
+add_action('admin_footer', array('EACFA_Live', 'print_refresh_config'), 100);
+add_action('wp_footer', array('EACFA_Live', 'print_refresh_config'), 1001);
 
 add_action('wp_ajax_cf_analytics_refresh', function () {
     check_ajax_referer('cf_analytics_refresh', 'nonce');

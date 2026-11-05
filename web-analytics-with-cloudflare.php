@@ -3,7 +3,7 @@
  * Plugin Name: Easy Analytics with Cloudflare RUM
  * Plugin URI: https://github.com/tdmrhn/web-analytics-with-cloudflare
  * Description: See your Cloudflare RUM Analytics in WordPress: visits, page views, page load time and Core Web Vitals (LCP, INP, CLS), read live from Cloudflare with nothing stored in your database.
- * Version: 0.2.1
+ * Version: 0.3
  * Requires at least: 5.3
  * Requires PHP: 7.4
  * Author: dmrhn
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('EACFA_VERSION', '0.2.1');
+define('EACFA_VERSION', '0.3');
 define('EACFA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('EACFA_PLUGIN_URL', plugin_dir_url(__FILE__));
 
