@@ -99,8 +99,3 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 * Light, dark and system themes; the header toggle shows a crescent (switch to dark) or a sun (switch to light)
 * Settings are verified after saving
 * Charts drawn by a small script bundled with the plugin (no external scripts)
-
-== Upgrade Notice ==
-
-= 0.1 =
-If you tested an earlier build named "Cloudflare Analytics", deactivate and delete it first, then activate this plugin. Your saved settings are kept.
