@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class CF_Live {
+class EACFA_Live {
     const TTL_LIVE = 600;   // how long data counts as fresh
     const TTL_PAST = 3600;  // finished ranges (yesterday) stay fresh longer
     const TTL_FAIL = 30;    // failures are remembered briefly
@@ -190,7 +190,7 @@ class CF_Live {
         $settings = get_option('cf_analytics_settings', array());
         $gen = (int) get_option('cf_analytics_cache_gen', 1);
         $site = isset($settings['site_tag']) ? $settings['site_tag'] : '';
-        $key = 'cfa_v2_' . md5($gen . '|' . self::zone_id() . '|' . $site . '|' . wp_date('Ymd') . '|' . $name);
+        $key = 'eacfa_v2_' . md5($gen . '|' . self::zone_id() . '|' . $site . '|' . wp_date('Ymd') . '|' . $name);
 
         if (self::$cache_only_mode) {
             $cache_only = true;
@@ -288,7 +288,7 @@ class CF_Live {
         $range = self::sanitize_range(isset($args[0]) ? (string) $args[0] : '', '7days');
 
         // One refresh per dataset at a time.
-        $lock = 'cfa_lock_' . md5($method . '|' . wp_json_encode($args));
+        $lock = 'eacfa_lock_' . md5($method . '|' . wp_json_encode($args));
         if (get_transient($lock)) {
             return;
         }
@@ -328,15 +328,81 @@ class CF_Live {
         return substr($path, 0, 512);
     }
 
+    /* ------------------------------------------------------------------
+     * Saving settings reliably
+     *
+     * update_option() reports false both for "nothing changed" and for "the write failed", and it
+     * trusts WordPress's cached copy. If option rows were removed straight from the database (for
+     * example by a database cleaner) while a persistent object cache still holds the old values,
+     * a normal update_option() quietly does nothing. These helpers verify every write against the
+     * database and retry from a clean state.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Drop every cached copy of an option so the next read comes from the database
+     */
+    private static function forget_option($name) {
+        wp_cache_delete($name, 'options');
+        wp_cache_delete('alloptions', 'options');
+        wp_cache_delete('notoptions', 'options');
+    }
+
+    /**
+     * Does the database hold exactly this value? (cache bypassed)
+     */
+    private static function option_holds($name, $value) {
+        self::forget_option($name);
+        return maybe_serialize(get_option($name, null)) === maybe_serialize($value);
+    }
+
+    /**
+     * Save an option and confirm it was stored. Returns array('ok' => bool, 'error' => string).
+     */
+    public static function save_option($name, $value) {
+        global $wpdb;
+
+        update_option($name, $value, false);
+        if (self::option_holds($name, $value)) {
+            return array('ok' => true, 'error' => '');
+        }
+
+        // The cached copy may be out of date; try again from a clean state.
+        self::forget_option($name);
+        update_option($name, $value, false);
+        if (self::option_holds($name, $value)) {
+            return array('ok' => true, 'error' => '');
+        }
+
+        // Last resort: remove the row and add it again.
+        delete_option($name);
+        self::forget_option($name);
+        add_option($name, $value, '', false);
+        if (self::option_holds($name, $value)) {
+            return array('ok' => true, 'error' => '');
+        }
+
+        return array('ok' => false, 'error' => $wpdb->last_error !== '' ? $wpdb->last_error : 'The database did not keep the value.');
+    }
+
+    /**
+     * Delete an option and confirm it is gone
+     */
+    public static function remove_option($name) {
+        delete_option($name);
+        self::forget_option($name);
+
+        return get_option($name, null) === null;
+    }
+
     /**
      * Forget everything cached. Cache keys include a generation number, so bumping it makes every
      * existing entry unreachable at once; the old entries expire on their own within two days.
      */
     public static function refresh_cache() {
-        update_option('cf_analytics_cache_gen', (int) get_option('cf_analytics_cache_gen', 1) + 1, false);
+        self::save_option('cf_analytics_cache_gen', (int) get_option('cf_analytics_cache_gen', 1) + 1);
         delete_transient('cf_analytics_last_error');
-        delete_transient('cfa_valid_paths');
-        delete_transient('cfa_ctx_fail');
+        delete_transient('eacfa_valid_paths');
+        delete_transient('eacfa_ctx_fail');
     }
 
     /* ------------------------------------------------------------------
@@ -350,12 +416,12 @@ class CF_Live {
             return array('success' => true, 'account' => $settings['account_id'], 'site' => $settings['site_tag']);
         }
 
-        $failed = get_transient('cfa_ctx_fail');
+        $failed = get_transient('eacfa_ctx_fail');
         if (is_array($failed)) {
             return $failed;
         }
 
-        $api = new CF_API();
+        $api = new EACFA_API();
         $manual = (!empty($settings['site_manual']) && !empty($settings['site_tag'])) ? $settings['site_tag'] : '';
         $d = $api->diagnose(isset($settings['zone_id']) ? $settings['zone_id'] : '', $manual, false);
 
@@ -365,7 +431,7 @@ class CF_Live {
             if ($d['site_host'] !== '') {
                 $settings['site_host'] = $d['site_host'];
             }
-            update_option('cf_analytics_settings', $settings);
+            self::save_option('cf_analytics_settings', $settings);
             return array('success' => true, 'account' => $d['account_id'], 'site' => $d['site_tag']);
         }
 
@@ -378,12 +444,12 @@ class CF_Live {
         }
 
         $failed = array('success' => false, 'message' => $message);
-        set_transient('cfa_ctx_fail', $failed, MINUTE_IN_SECONDS);
+        set_transient('eacfa_ctx_fail', $failed, MINUTE_IN_SECONDS);
         return $failed;
     }
 
     private static function rum($ctx, $dataset, $start, $end, $selection, $limit = 1, $order = '', $extra = array()) {
-        $api = new CF_API();
+        $api = new EACFA_API();
         return $api->rum_query($ctx['account'], $dataset, $ctx['site'], self::iso($start), self::iso($end), $selection, $limit, $order, $extra);
     }
 
@@ -458,7 +524,7 @@ class CF_Live {
      * Average page load time in ms, or null when Cloudflare doesn't expose it
      */
     private static function fetch_page_load($ctx, $start, $end) {
-        $api = new CF_API();
+        $api = new EACFA_API();
 
         if (in_array('pageLoadTime', $api->type_fields('AccountRumPerformanceEventsAdaptiveGroupsAvg'), true)) {
             $selection = 'avg { pageLoadTime }';
@@ -597,7 +663,7 @@ class CF_Live {
      * Published posts/pages: normalised path => title (cached for an hour)
      */
     private static function valid_paths() {
-        $map = get_transient('cfa_valid_paths');
+        $map = get_transient('eacfa_valid_paths');
         if (is_array($map)) {
             return $map;
         }
@@ -621,7 +687,7 @@ class CF_Live {
             }
         }
 
-        set_transient('cfa_valid_paths', $map, HOUR_IN_SECONDS);
+        set_transient('eacfa_valid_paths', $map, HOUR_IN_SECONDS);
         return $map;
     }
 
@@ -803,7 +869,7 @@ class CF_Live {
                 return $ctx;
             }
 
-            $api = new CF_API();
+            $api = new EACFA_API();
             $quantile_fields = $api->type_fields('AccountRumWebVitalsEventsAdaptiveGroupsQuantiles');
             $sum_fields = $api->type_fields('AccountRumWebVitalsEventsAdaptiveGroupsSum');
 
@@ -1006,7 +1072,7 @@ class CF_Live {
     }
 
     /**
-     * Tags and attributes CF_Live::trend() produces, for wp_kses() at the point of output
+     * Tags and attributes EACFA_Live::trend() produces, for wp_kses() at the point of output
      */
     public static function allowed_html() {
         return array(
@@ -1046,8 +1112,8 @@ class CF_Live {
 
 // Refresh queued data after the page has loaded. The admin bar renders late on the public site
 // (wp_footer priority 1000), so the script is printed after it.
-add_action('admin_footer', array('CF_Live', 'print_refresh_script'), 100);
-add_action('wp_footer', array('CF_Live', 'print_refresh_script'), 1001);
+add_action('admin_footer', array('EACFA_Live', 'print_refresh_script'), 100);
+add_action('wp_footer', array('EACFA_Live', 'print_refresh_script'), 1001);
 
 add_action('wp_ajax_cf_analytics_refresh', function () {
     check_ajax_referer('cf_analytics_refresh', 'nonce');
@@ -1073,7 +1139,7 @@ add_action('wp_ajax_cf_analytics_refresh', function () {
         if (!is_array($job) || empty($job[0]) || !isset($job[1]) || !is_array($job[1])) {
             continue;
         }
-        CF_Live::run_job((string) $job[0], $job[1]);
+        EACFA_Live::run_job((string) $job[0], $job[1]);
         $done++;
     }
 
@@ -1087,7 +1153,7 @@ add_action('wp_ajax_cf_analytics_refresh', function () {
 add_action('wp_ajax_cf_analytics_bar_count', function () {
     check_ajax_referer('cf_analytics_bar_count', 'nonce');
 
-    if (!current_user_can('manage_options') || !CF_API::is_configured()) {
+    if (!current_user_can('manage_options') || !EACFA_API::is_configured()) {
         wp_send_json_error('Unauthorized');
     }
 
@@ -1099,8 +1165,8 @@ add_action('wp_ajax_cf_analytics_bar_count', function () {
         // clean_path() strips control characters and bounds the length; sanitize_text_field() would
         // strip percent-encoded characters from the path.
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-        $path = CF_Live::clean_path(isset($_POST['path']) ? wp_unslash($_POST['path']) : '/');
-        $res = CF_Live::page_views('today', $path, false, true);
+        $path = EACFA_Live::clean_path(isset($_POST['path']) ? wp_unslash($_POST['path']) : '/');
+        $res = EACFA_Live::page_views('today', $path, false, true);
 
         if (empty($res['success'])) {
             wp_send_json_error(isset($res['message']) ? $res['message'] : 'Could not load the count.');
@@ -1109,7 +1175,7 @@ add_action('wp_ajax_cf_analytics_bar_count', function () {
         wp_send_json_success(array('views' => number_format_i18n($res['views']), 'visits' => number_format_i18n($res['visits'])));
     }
 
-    $res = CF_Live::series('today', false, true);
+    $res = EACFA_Live::series('today', false, true);
 
     if (empty($res['success'])) {
         wp_send_json_error(isset($res['message']) ? $res['message'] : 'Could not load the count.');

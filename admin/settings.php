@@ -11,8 +11,8 @@ if (!defined('ABSPATH')) {
 /**
  * Saved token shown as asterisks plus its last four characters
  */
-function cfa_masked_token() {
-    $credentials = CF_API::resolve_credentials();
+function eacfa_masked_token() {
+    $credentials = EACFA_API::resolve_credentials();
 
     if (empty($credentials['token'])) {
         return '';
@@ -21,9 +21,9 @@ function cfa_masked_token() {
     return str_repeat('*', 24) . substr($credentials['token'], -4);
 }
 
-function cfa_is_settings_request() {
-    return cfa_param('page') === 'cf-analytics'
-        && cfa_param('section') === 'settings'
+function eacfa_is_settings_request() {
+    return eacfa_param('page') === 'cf-analytics'
+        && eacfa_param('section') === 'settings'
         && current_user_can('manage_options');
 }
 
@@ -31,7 +31,7 @@ function cfa_is_settings_request() {
  * Handle form submissions (runs before any output)
  */
 add_action('admin_init', function() {
-    if (!cfa_is_settings_request()) {
+    if (!eacfa_is_settings_request()) {
         return;
     }
 
@@ -41,12 +41,12 @@ add_action('admin_init', function() {
 
         $existing = get_option('cf_analytics_settings', array());
         $zone_id = sanitize_text_field(wp_unslash(isset($_POST['cf_zone_id']) ? $_POST['cf_zone_id'] : ''));
-        $token = CF_API::clean_token(isset($_POST['cf_api_token']) ? sanitize_text_field(wp_unslash($_POST['cf_api_token'])) : '');
+        $token = EACFA_API::clean_token(isset($_POST['cf_api_token']) ? sanitize_text_field(wp_unslash($_POST['cf_api_token'])) : '');
         $manual_tag = strtolower(trim(sanitize_text_field(wp_unslash(isset($_POST['cf_site_tag']) ? $_POST['cf_site_tag'] : ''))));
 
         // Leaving the token empty keeps the saved one (handy when only changing the zone).
         if ($token === '' && !empty($existing['api_token'])) {
-            $token = (string) CF_Encryption::decrypt($existing['api_token']);
+            $token = (string) EACFA_Encryption::decrypt($existing['api_token']);
         }
 
         if ($token === '') {
@@ -54,17 +54,17 @@ add_action('admin_init', function() {
             return;
         }
 
-        if (!CF_API::is_tag($zone_id)) {
+        if (!EACFA_API::is_tag($zone_id)) {
             add_settings_error('cf_analytics', 'zone_invalid', 'The Zone ID should be 32 characters (letters a-f and digits). Use "Load my zones" to pick it automatically.');
             return;
         }
 
-        if ($manual_tag !== '' && !CF_API::is_tag($manual_tag)) {
+        if ($manual_tag !== '' && !EACFA_API::is_tag($manual_tag)) {
             add_settings_error('cf_analytics', 'tag_invalid', 'The Web Analytics site tag should be 32 characters (letters a-f and digits), or leave it empty to detect it automatically.');
             return;
         }
 
-        $api = new CF_API(array('type' => 'token', 'token' => $token));
+        $api = new EACFA_API(array('type' => 'token', 'token' => $token));
         $d = $api->diagnose($zone_id, $manual_tag);
 
         // Token and zone are required; the Web Analytics steps may need follow-up permissions.
@@ -79,9 +79,9 @@ add_action('admin_init', function() {
             return;
         }
 
-        update_option('cf_analytics_settings', array(
+        $saved = EACFA_Live::save_option('cf_analytics_settings', array(
             'auth_type'   => 'token',
-            'api_token'   => CF_Encryption::encrypt($token),
+            'api_token'   => EACFA_Encryption::encrypt($token),
             'zone_id'     => $zone_id,
             'zone_name'   => $d['zone_name'],
             'account_id'  => $d['account_id'],
@@ -89,7 +89,13 @@ add_action('admin_init', function() {
             'site_host'   => $d['site_host'],
             'site_manual' => ($manual_tag !== '')
         ));
-        CF_Live::refresh_cache();
+
+        if (!$saved['ok']) {
+            add_settings_error('cf_analytics', 'save_failed', 'Connected to Cloudflare, but the settings could not be saved: ' . $saved['error']);
+            return;
+        }
+
+        EACFA_Live::refresh_cache();
 
         if ($d['ok']) {
             add_settings_error('cf_analytics', 'settings_saved', 'Connected. Web Analytics data is readable.', 'success');
@@ -108,16 +114,19 @@ add_action('admin_init', function() {
     // Disconnect
     if (isset($_POST['cf_analytics_disconnect'])) {
         check_admin_referer('cf_analytics_disconnect');
-        delete_option('cf_analytics_settings');
-        CF_Live::refresh_cache();
-        add_settings_error('cf_analytics', 'disconnected', 'Disconnected. Your token has been removed from this site.', 'success');
+        if (EACFA_Live::remove_option('cf_analytics_settings')) {
+            EACFA_Live::refresh_cache();
+            add_settings_error('cf_analytics', 'disconnected', 'Disconnected. Your token has been removed from this site.', 'success');
+        } else {
+            add_settings_error('cf_analytics', 'disconnect_failed', 'The token could not be removed from the database.');
+        }
         return;
     }
 
     // Clear cache
     if (isset($_POST['cf_analytics_refresh_cache'])) {
         check_admin_referer('cf_analytics_refresh_cache');
-        CF_Live::refresh_cache();
+        EACFA_Live::refresh_cache();
         add_settings_error('cf_analytics', 'cache_cleared', 'Cache cleared. The next view fetches fresh data from Cloudflare.', 'success');
         return;
     }
@@ -125,21 +134,55 @@ add_action('admin_init', function() {
     // Refresh interval
     if (isset($_POST['cf_analytics_save_refresh'])) {
         check_admin_referer('cf_analytics_refresh_interval');
-        $value = isset($_POST['cf_analytics_interval']) ? (int) $_POST['cf_analytics_interval'] : CF_Live::TTL_LIVE;
-        if (!array_key_exists($value, CF_Live::intervals())) {
-            $value = CF_Live::TTL_LIVE;
+        $value = isset($_POST['cf_analytics_interval']) ? (int) $_POST['cf_analytics_interval'] : EACFA_Live::TTL_LIVE;
+        if (!array_key_exists($value, EACFA_Live::intervals())) {
+            $value = EACFA_Live::TTL_LIVE;
         }
-        update_option('cf_analytics_refresh_interval', $value, false);
-        add_settings_error('cf_analytics', 'interval_saved', 'Refresh setting saved.', 'success');
+        $saved = EACFA_Live::save_option('cf_analytics_refresh_interval', $value);
+
+        if ($saved['ok']) {
+            wp_safe_redirect(EACFA_Live::dashboard_url(array('section' => 'settings', 'eacfa_saved' => 'interval')));
+            exit;
+        }
+
+        add_settings_error('cf_analytics', 'interval_failed', 'The refresh setting could not be saved: ' . $saved['error']);
+        return;
+    }
+
+    // Primary colour (site-wide)
+    if (isset($_POST['cf_analytics_save_primary']) || isset($_POST['cf_analytics_reset_primary'])) {
+        check_admin_referer('cf_analytics_primary_color');
+
+        $color = isset($_POST['cf_analytics_reset_primary'])
+            ? eacfa_default_primary_color()
+            : sanitize_hex_color(isset($_POST['cf_analytics_primary_color']) ? wp_unslash($_POST['cf_analytics_primary_color']) : '');
+
+        if (!$color) {
+            add_settings_error('cf_analytics', 'color_invalid', 'Please pick a valid color.');
+            return;
+        }
+
+        $saved = EACFA_Live::save_option('cf_analytics_primary_color', $color);
+        if ($saved['ok']) {
+            wp_safe_redirect(EACFA_Live::dashboard_url(array('section' => 'settings', 'eacfa_saved' => 'color')));
+            exit;
+        }
+
+        add_settings_error('cf_analytics', 'color_failed', 'The color could not be saved. Please try again.');
         return;
     }
 
     // Appearance (per user)
     if (isset($_POST['cf_analytics_save_appearance'])) {
         check_admin_referer('cf_analytics_appearance');
-        cfa_set_theme(isset($_POST['cf_analytics_theme']) ? sanitize_key($_POST['cf_analytics_theme']) : 'light');
-        wp_safe_redirect(CF_Live::dashboard_url(array('section' => 'settings', 'cfa_saved' => 1)));
-        exit;
+
+        if (eacfa_set_theme(isset($_POST['cf_analytics_theme']) ? sanitize_key($_POST['cf_analytics_theme']) : 'light')) {
+            wp_safe_redirect(EACFA_Live::dashboard_url(array('section' => 'settings', 'eacfa_saved' => 'appearance')));
+            exit;
+        }
+
+        add_settings_error('cf_analytics', 'appearance_failed', 'Your appearance setting could not be saved.');
+        return;
     }
 });
 
@@ -153,16 +196,16 @@ add_action('wp_ajax_cf_analytics_get_zones', function() {
         wp_send_json_error('Unauthorized');
     }
 
-    $token = CF_API::clean_token(isset($_POST['token']) ? sanitize_text_field(wp_unslash($_POST['token'])) : '');
+    $token = EACFA_API::clean_token(isset($_POST['token']) ? sanitize_text_field(wp_unslash($_POST['token'])) : '');
     $credentials = null;
 
     if ($token !== '') {
         $credentials = array('type' => 'token', 'token' => $token);
-    } elseif (!CF_API::resolve_credentials()) {
+    } elseif (!EACFA_API::resolve_credentials()) {
         wp_send_json_error('Paste your API token first.');
     }
 
-    $api = new CF_API($credentials);
+    $api = new EACFA_API($credentials);
     $result = $api->get_zones();
 
     if (empty($result['success'])) {
@@ -194,7 +237,7 @@ add_action('wp_ajax_cf_analytics_test_connection', function() {
     }
 
     $settings = get_option('cf_analytics_settings', array());
-    $api = new CF_API();
+    $api = new EACFA_API();
     $manual = (!empty($settings['site_manual']) && !empty($settings['site_tag'])) ? $settings['site_tag'] : '';
     $d = $api->diagnose(isset($settings['zone_id']) ? $settings['zone_id'] : '', $manual);
 
@@ -205,8 +248,8 @@ add_action('wp_ajax_cf_analytics_test_connection', function() {
         if ($d['site_host'] !== '') {
             $settings['site_host'] = $d['site_host'];
         }
-        update_option('cf_analytics_settings', $settings);
-        delete_transient('cfa_ctx_fail');
+        EACFA_Live::save_option('cf_analytics_settings', $settings);
+        delete_transient('eacfa_ctx_fail');
     }
 
     if ($d['ok']) {
@@ -219,19 +262,24 @@ add_action('wp_ajax_cf_analytics_test_connection', function() {
 /**
  * The settings section (rendered inside the dashboard shell)
  */
-function cfa_render_settings() {
+function eacfa_render_settings() {
     $settings = get_option('cf_analytics_settings', array());
-    $is_configured = CF_API::is_configured();
+    $is_configured = EACFA_API::is_configured();
     $last_error = get_transient('cf_analytics_last_error');
-    $theme = cfa_current_theme();
-    $masked = cfa_masked_token();
+    $theme = eacfa_current_theme();
+    $masked = eacfa_masked_token();
     // A link the user clicks to open their Cloudflare dashboard. Nothing is loaded from it.
     // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent
     $tokens_url = 'https://dash.cloudflare.com/profile/api-tokens';
 
     settings_errors('cf_analytics');
-    if (cfa_has_param('cfa_saved')) {
+    $saved_notice = eacfa_param('eacfa_saved');
+    if ($saved_notice === 'appearance') {
         echo '<div class="cfa-notice is-success">Appearance saved.</div>';
+    } elseif ($saved_notice === 'interval') {
+        echo '<div class="cfa-notice is-success">Refresh setting saved.</div>';
+    } elseif ($saved_notice === 'color') {
+        echo '<div class="cfa-notice is-success">Accent color saved.</div>';
     }
     ?>
     <div class="cfa-settings-inner">
@@ -270,7 +318,7 @@ function cfa_render_settings() {
                         <button type="submit" name="cf_analytics_refresh_cache" class="cfa-btn">Clear cache</button>
                     </form>
                 </div>
-                <p class="cfa-hint">Stats are read from Cloudflare and refreshed in the background <?php echo esc_html(CF_Live::interval_phrase()); ?>. Only the encrypted token and the IDs above are saved in your database.</p>
+                <p class="cfa-hint">Stats are read from Cloudflare and refreshed in the background <?php echo esc_html(EACFA_Live::interval_phrase()); ?>. Only the encrypted token and the IDs above are saved in your database.</p>
             </section>
         <?php endif; ?>
 
@@ -336,11 +384,11 @@ function cfa_render_settings() {
                 <input type="hidden" name="cf_analytics_save_refresh" value="1">
                 <?php
                 $short = array(300 => '5 min', 600 => '10 min', 1800 => '30 min', 3600 => '1 hour', 0 => 'Manual');
-                $current = CF_Live::refresh_interval();
+                $current = EACFA_Live::refresh_interval();
                 ?>
                 <div class="cfa-seg cfa-seg-radio" role="radiogroup" aria-label="Refresh data">
-                    <?php foreach (CF_Live::intervals() as $seconds => $label): ?>
-                        <label title="<?php echo esc_attr($label . ($seconds === CF_Live::TTL_LIVE ? ' (default)' : '')); ?>">
+                    <?php foreach (EACFA_Live::intervals() as $seconds => $label): ?>
+                        <label title="<?php echo esc_attr($label . ($seconds === EACFA_Live::TTL_LIVE ? ' (default)' : '')); ?>">
                             <input type="radio" name="cf_analytics_interval" value="<?php echo esc_attr($seconds); ?>" <?php checked($current, $seconds); ?>>
                             <span><?php echo esc_html($short[$seconds]); ?></span>
                         </label>
@@ -358,8 +406,9 @@ function cfa_render_settings() {
 
         <section class="cfa-card cfa-pad">
             <div class="cfa-card-head"><h3>Appearance</h3></div>
-            <form method="post">
+            <form method="post" id="cf-appearance-form">
                 <?php wp_nonce_field('cf_analytics_appearance'); ?>
+                <input type="hidden" name="cf_analytics_save_appearance" value="1">
                 <div class="cfa-themes" role="radiogroup" aria-label="Theme">
                     <?php foreach (array('light' => 'Light', 'dark' => 'Dark', 'auto' => 'System') as $value => $label): ?>
                         <label class="cfa-theme">
@@ -369,16 +418,39 @@ function cfa_render_settings() {
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <p class="cfa-hint">Applies to the dashboard, the dashboard widget and this page, for your user only. &ldquo;System&rdquo; follows your device setting.</p>
-                <button type="submit" name="cf_analytics_save_appearance" class="cfa-btn">Save appearance</button>
+                <p class="cfa-hint">Saves as soon as you pick an option. Applies to the dashboard, the dashboard widget and this page, for your user only. &ldquo;System&rdquo; follows your device setting.</p>
+                <noscript><button type="submit" class="cfa-btn">Save</button></noscript>
+            </form>
+            <script>
+            document.querySelectorAll('#cf-appearance-form input[type="radio"]').forEach(function (input) {
+                input.addEventListener('change', function () { input.form.submit(); });
+            });
+            </script>
+        </section>
+
+        <section class="cfa-card cfa-pad">
+            <div class="cfa-card-head"><h3>Primary color</h3></div>
+            <form method="post" id="cf-primary-form">
+                <?php wp_nonce_field('cf_analytics_primary_color'); ?>
+                <div class="cfa-field">
+                    <label for="cf_analytics_primary_color">Accent color</label>
+                    <div class="cfa-color-row">
+						<div id="cfa-color-picker"></div>
+						<input type="hidden" id="cf_analytics_primary_color" name="cf_analytics_primary_color" value="<?php echo esc_attr(eacfa_primary_color()); ?>">
+                        <button type="submit" name="cf_analytics_save_primary" value="1" class="cfa-btn is-primary">Save color</button>
+                        <button type="submit" name="cf_analytics_reset_primary" value="1" class="cfa-btn">Reset to default</button>
+                    </div>
+                </div>
+                <p class="cfa-hint">Used for buttons, highlights and the chart lines. Every other tone is derived from this color. Good, needs improvement and poor keep their own colors so the Core Web Vitals ratings stay readable. Applies to everyone who uses this site's dashboard.</p>
             </form>
         </section>
+
 
         <?php if ($is_configured): ?>
             <section class="cfa-card cfa-pad">
                 <div class="cfa-card-head"><h3>Disconnect</h3></div>
                 <p>Removes the saved token and zone from this site. Your Cloudflare account is not changed; you can also revoke the token in Cloudflare.</p>
-                <form method="post" onsubmit="return confirm('Disconnect Web Analytics for Cloudflare?');">
+                <form method="post" onsubmit="return confirm('Disconnect Easy Analytics with Cloudflare RUM?');">
                     <?php wp_nonce_field('cf_analytics_disconnect'); ?>
                     <button type="submit" name="cf_analytics_disconnect" class="cfa-btn is-danger">Disconnect</button>
                 </form>

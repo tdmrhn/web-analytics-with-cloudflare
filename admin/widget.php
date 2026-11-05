@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class CF_Analytics_Widget {
+class EACFA_Analytics_Widget {
 
     public function __construct() {
         add_action('wp_dashboard_setup', array($this, 'add_dashboard_widget'));
@@ -25,7 +25,7 @@ class CF_Analytics_Widget {
 
         // The button lives in the title bar, next to WordPress's own collapse/move arrows.
         $title = '<span class="cfw-title">Analytics'
-            . '<a class="cfw-open" href="' . esc_url(CF_Live::dashboard_url()) . '">Open Dashboard</a></span>';
+            . '<a class="cfw-open" href="' . esc_url(EACFA_Live::dashboard_url()) . '">Open Dashboard</a></span>';
 
         wp_add_dashboard_widget('cf_analytics_widget', $title, array($this, 'render_widget'));
     }
@@ -42,8 +42,8 @@ class CF_Analytics_Widget {
             'visits' => array_values(wp_list_pluck($series['points'], 'visits')),
             'views'  => array_values(wp_list_pluck($series['points'], 'views')),
             'stats'  => array(
-                'visits' => array(number_format_i18n($t['visits']), CF_Live::trend(CF_Live::change($t['visits'], $p ? $p['visits'] : null))),
-                'views'  => array(number_format_i18n($t['views']), CF_Live::trend(CF_Live::change($t['views'], $p ? $p['views'] : null)))
+                'visits' => array(number_format_i18n($t['visits']), EACFA_Live::trend(EACFA_Live::change($t['visits'], $p ? $p['visits'] : null))),
+                'views'  => array(number_format_i18n($t['views']), EACFA_Live::trend(EACFA_Live::change($t['views'], $p ? $p['views'] : null)))
             ),
             'stale'  => !empty($series['stale']),
             'age'    => isset($series['fetched_at']) ? max(0, time() - (int) $series['fetched_at']) : null
@@ -60,7 +60,7 @@ class CF_Analytics_Widget {
             wp_send_json_error('Unauthorized');
         }
 
-        $series = CF_Live::series('30days', false, true);
+        $series = EACFA_Live::series('30days', false, true);
 
         if (empty($series['success'])) {
             wp_send_json_error(isset($series['message']) ? $series['message'] : 'Could not load analytics.');
@@ -70,20 +70,20 @@ class CF_Analytics_Widget {
     }
 
     public function render_widget() {
-        if (!CF_API::is_configured()) {
+        if (!EACFA_API::is_configured()) {
             ?>
             <div class="cfw-empty">
                 <p>Connect Cloudflare to see your Web Analytics here.</p>
-                <a class="cfw-open" href="<?php echo esc_url(CF_Live::dashboard_url(array('section' => 'settings'))); ?>">Connect now</a>
+                <a class="cfw-open" href="<?php echo esc_url(EACFA_Live::dashboard_url(array('section' => 'settings'))); ?>">Connect now</a>
             </div>
             <?php
             return;
         }
 
         // Cache only: serve what we have (fresh or stale) without calling Cloudflare.
-        CF_Live::$no_queue = true;
-        $series = CF_Live::series('30days', true);
-        CF_Live::$no_queue = false;
+        EACFA_Live::$no_queue = true;
+        $series = EACFA_Live::series('30days', true);
+        EACFA_Live::$no_queue = false;
 
         $data = !empty($series['success']) ? $this->payload($series) : null;
 
@@ -92,7 +92,7 @@ class CF_Analytics_Widget {
             ?>
             <div class="cfw-empty">
                 <p><?php echo esc_html(isset($series['message']) ? $series['message'] : 'Could not load analytics.'); ?></p>
-                <a href="<?php echo esc_url(CF_Live::dashboard_url(array('section' => 'settings'))); ?>">Check settings</a>
+                <a href="<?php echo esc_url(EACFA_Live::dashboard_url(array('section' => 'settings'))); ?>">Check settings</a>
             </div>
             <?php
             return;
@@ -108,7 +108,7 @@ class CF_Analytics_Widget {
                     <div class="cfw-stat" data-key="<?php echo esc_attr($key); ?>">
                         <span class="cfw-pill"><?php echo esc_html($label); ?></span>
                         <div class="cfw-num"><?php echo $data ? esc_html($data['stats'][$key][0]) : '<span class="cfw-skel"></span>'; ?></div>
-                        <div class="cfw-trend"><?php echo $data ? wp_kses($data['stats'][$key][1], CF_Live::allowed_html()) : ''; ?></div>
+                        <div class="cfw-trend"><?php echo $data ? wp_kses($data['stats'][$key][1], EACFA_Live::allowed_html()) : ''; ?></div>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -155,19 +155,19 @@ class CF_Analytics_Widget {
                 });
 
                 var el = document.getElementById('cfw-chart');
-                if (!el || typeof CfaChart === 'undefined') { return; }
+                if (!el || typeof EacfaChart === 'undefined') { return; }
 
                 if (chart) {
                     chart.update({ labels: d.labels, datasets: [{ data: d.views }, { data: d.visits }] });
                     return;
                 }
 
-                chart = new CfaChart(el, {
+                chart = new EacfaChart(el, {
                     label: 'Visits and page views, last 30 days',
                     labels: d.labels,
                     datasets: [
-                        { label: 'Page views', data: d.views,  color: '#f59e0b' },
-                        { label: 'Visits',     data: d.visits, color: '#7b4a9e' }
+                        { label: 'Page views', data: d.views,  color: '<?php echo esc_js(eacfa_palette()['series_views']); ?>' },
+                        { label: 'Visits',     data: d.visits, color: '<?php echo esc_js(eacfa_palette()['series_visits']); ?>' }
                     ],
                     dotRadius: 4,
                     lineWidth: 4,
@@ -217,4 +217,4 @@ class CF_Analytics_Widget {
     }
 }
 
-new CF_Analytics_Widget();
+new EACFA_Analytics_Widget();

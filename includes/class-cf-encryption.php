@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class CF_Encryption {
+class EACFA_Encryption {
     
     /**
      * Encrypt data using WordPress salts

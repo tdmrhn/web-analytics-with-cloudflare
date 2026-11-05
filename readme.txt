@@ -1,9 +1,9 @@
-=== Web Analytics with Cloudflare RUM ===
+=== Easy Analytics with Cloudflare RUM ===
 Contributors: dmrhn
 Tags: cloudflare, web analytics, core web vitals, performance, statistics
 Requires at least: 5.3
 Tested up to: 7.1
-Stable tag: 0.1
+Stable tag: 0.2.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,7 +12,7 @@ See Cloudflare Web Analytics in WordPress: visits, page views, page load time an
 
 == Description ==
 
-Web Analytics for Cloudflare shows your Cloudflare **Web Analytics** RUM (real user monitoring) data inside WordPress. Data is read from Cloudflare and kept for a short time, so nothing is copied into custom database tables.
+Easy Analytics with Cloudflare RUM shows your Cloudflare **Web Analytics** (real user monitoring) data inside WordPress. Data is read from Cloudflare and kept for a short time, so nothing is copied into custom database tables.
 
 This plugin is not affiliated with, endorsed by, or sponsored by Cloudflare, Inc. Cloudflare is a trademark of Cloudflare, Inc.
 
@@ -25,6 +25,7 @@ This plugin is not affiliated with, endorsed by, or sponsored by Cloudflare, Inc
 * **Admin bar counter**: today's page views for the page you are viewing on the public site, and total views in wp-admin
 * **Fast**: pages open from saved data and refresh in the background after they have loaded. Choose how often: every 5 minutes, 10 minutes, 30 minutes, hourly, or manual only
 * **Dark mode**: Light, Dark or System, saved per user
+* **Primary color**: choose your accent color once; the rest of the palette adapts to it
 * **No external scripts**: the charts are drawn by a small script bundled with the plugin
 * **Secure**: your API token is encrypted using your WordPress salts
 
@@ -79,11 +80,23 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 
 == Changelog ==
 
+= 0.2 =
+* Renamed to Easy Analytics with Cloudflare RUM
+* Primary color setting: the accent color and chart colors follow the color you choose
+* Internal function and class names carry a unique prefix
+* Stylesheet uses design tokens with relative units (rem, em) and fluid sizes (clamp)
+
 = 0.1 =
 * First release
 * Cloudflare Web Analytics in WordPress: visits, page views, page load time and Core Web Vitals (LCP, INP, CLS) with trends against the previous period
 * Pages, referrers, countries, browsers, operating systems and devices
 * Dashboard widget, and an admin bar counter with the exact views of the page you are viewing
 * Pages open from saved data and refresh in the background; choose the interval or refresh manually
-* Light, dark and system themes
+* Light, dark and system themes; the header toggle shows a crescent (switch to dark) or a sun (switch to light)
+* Settings are verified after saving
 * Charts drawn by a small script bundled with the plugin (no external scripts)
+
+== Upgrade Notice ==
+
+= 0.1 =
+If you tested an earlier build named "Cloudflare Analytics", deactivate and delete it first, then activate this plugin. Your saved settings are kept.

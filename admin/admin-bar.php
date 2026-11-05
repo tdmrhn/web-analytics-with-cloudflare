@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class CF_Analytics_Admin_Bar {
+class EACFA_Analytics_Admin_Bar {
 
     /** array('scope' => 'page'|'total', 'path' => string) when the counter needs a fresh number */
     private $refresh = null;
@@ -35,37 +35,37 @@ class CF_Analytics_Admin_Bar {
         if (is_singular()) {
             $path = wp_parse_url(get_permalink(get_queried_object_id()), PHP_URL_PATH);
             if ($path) {
-                return CF_Live::clean_path($path);
+                return EACFA_Live::clean_path($path);
             }
         } elseif (is_front_page()) {
             $path = wp_parse_url(home_url('/'), PHP_URL_PATH);
-            return CF_Live::clean_path($path ? $path : '/');
+            return EACFA_Live::clean_path($path ? $path : '/');
         }
 
         $uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
         $path = wp_parse_url($uri, PHP_URL_PATH);
 
-        return CF_Live::clean_path($path ? $path : '/');
+        return EACFA_Live::clean_path($path ? $path : '/');
     }
 
     public function add_admin_bar_item($wp_admin_bar) {
-        if (!current_user_can('manage_options') || !CF_API::is_configured()) {
+        if (!current_user_can('manage_options') || !EACFA_API::is_configured()) {
             return;
         }
 
         $front = !is_admin();
-        $dashboard = CF_Live::dashboard_url();
+        $dashboard = EACFA_Live::dashboard_url();
         $dash = "\xE2\x80\x93"; // placeholder until the number arrives
         $views = $dash;
         $visits = $dash;
         $needs_refresh = true;
 
         // Read the cache only; the refresh below happens after the page has loaded.
-        CF_Live::$no_queue = true;
+        EACFA_Live::$no_queue = true;
 
         if ($front) {
             $path = $this->current_path();
-            $res = CF_Live::page_views('today', $path, true);
+            $res = EACFA_Live::page_views('today', $path, true);
             if (!empty($res['success'])) {
                 $views = number_format_i18n($res['views']);
                 $needs_refresh = !empty($res['stale']);
@@ -73,7 +73,7 @@ class CF_Analytics_Admin_Bar {
             $this->refresh = array('scope' => 'page', 'path' => $path);
             $tip = 'Page views today for this page. Open Cloudflare Web Analytics.';
         } else {
-            $res = CF_Live::series('today', true);
+            $res = EACFA_Live::series('today', true);
             if (!empty($res['success'])) {
                 $views = number_format_i18n($res['totals']['views']);
                 $visits = number_format_i18n($res['totals']['visits']);
@@ -83,7 +83,7 @@ class CF_Analytics_Admin_Bar {
             $tip = 'Total page views today. Open Cloudflare Web Analytics.';
         }
 
-        CF_Live::$no_queue = false;
+        EACFA_Live::$no_queue = false;
 
         if (!$needs_refresh) {
             $this->refresh = null;
@@ -126,7 +126,7 @@ class CF_Analytics_Admin_Bar {
             'parent' => 'cf-analytics',
             'id'     => 'cf-analytics-settings',
             'title'  => 'Settings',
-            'href'   => CF_Live::dashboard_url(array('section' => 'settings'))
+            'href'   => EACFA_Live::dashboard_url(array('section' => 'settings'))
         ));
     }
 
@@ -194,4 +194,4 @@ class CF_Analytics_Admin_Bar {
     }
 }
 
-new CF_Analytics_Admin_Bar();
+new EACFA_Analytics_Admin_Bar();

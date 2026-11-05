@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class CF_API {
+class EACFA_API {
     private $api_url = 'https://api.cloudflare.com/client/v4';
     private $graphql_url = 'https://api.cloudflare.com/client/v4/graphql';
 
@@ -37,7 +37,7 @@ class CF_API {
         }
 
         if (!empty($settings['api_token'])) {
-            $token = CF_Encryption::decrypt($settings['api_token']);
+            $token = EACFA_Encryption::decrypt($settings['api_token']);
             if ($token) {
                 return array('type' => 'token', 'token' => $token);
             }
@@ -437,7 +437,7 @@ class CF_API {
             return array();
         }
 
-        $key = 'cfa_schema_' . md5($type_name);
+        $key = 'eacfa_schema_' . md5($type_name);
         $cached = get_transient($key);
         if (is_array($cached)) {
             return $cached;

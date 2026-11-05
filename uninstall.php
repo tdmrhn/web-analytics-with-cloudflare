@@ -12,10 +12,11 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 delete_option('cf_analytics_settings');          // encrypted token and zone / account / site IDs
 delete_option('cf_analytics_cache_gen');
 delete_option('cf_analytics_refresh_interval');
+delete_option('cf_analytics_primary_color');  // accent color
 
 delete_transient('cf_analytics_last_error');
-delete_transient('cfa_valid_paths');
-delete_transient('cfa_ctx_fail');
+delete_transient('eacfa_valid_paths');
+delete_transient('eacfa_ctx_fail');
 
 // Per-user theme choice (light / dark / system).
 delete_metadata('user', 0, 'cf_analytics_theme', '', true);

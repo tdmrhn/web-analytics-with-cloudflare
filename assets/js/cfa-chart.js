@@ -1,11 +1,11 @@
 /**
- * CfaChart: a small, dependency-free SVG line/area chart.
+ * EacfaChart: a small, dependency-free SVG line/area chart.
  *
  * Smooth lines, area fill, dots, dashed grid, hover tooltip, legend toggling, responsive.
  * Colors come from the CSS variables of the container (--cfa-line, --cfa-faint, --cfa-text,
  * --cfa-surface), so light and dark themes work without any extra code.
  *
- *   var chart = new CfaChart(element, {
+ *   var chart = new EacfaChart(element, {
  *       labels: ['Oct 1', 'Oct 2'],
  *       datasets: [{ label: 'Visits', data: [3, 5], color: '#7b4a9e' }],
  *       dotRadius: 3, lineWidth: 2.5, fontSize: 12, maxXTicks: 8
@@ -80,7 +80,7 @@
         return d;
     }
 
-    function CfaChart(container, options) {
+    function EacfaChart(container, options) {
         this.container = container;
         this.options = options || {};
         this.labels = this.options.labels || [];
@@ -107,7 +107,7 @@
         this.render();
     }
 
-    CfaChart.prototype.update = function (next) {
+    EacfaChart.prototype.update = function (next) {
         if (next.labels) { this.labels = next.labels; }
         if (next.datasets) {
             for (var i = 0; i < next.datasets.length; i++) {
@@ -119,19 +119,19 @@
         this.render();
     };
 
-    CfaChart.prototype.toggle = function (index) {
+    EacfaChart.prototype.toggle = function (index) {
         if (!this.datasets[index]) { return false; }
         this.datasets[index].visible = !this.datasets[index].visible;
         this.render();
         return this.datasets[index].visible;
     };
 
-    CfaChart.prototype.destroy = function () {
+    EacfaChart.prototype.destroy = function () {
         if (this.observer) { this.observer.disconnect(); } else { global.removeEventListener('resize', this.onResize); }
         this.container.innerHTML = '';
     };
 
-    CfaChart.prototype.render = function () {
+    EacfaChart.prototype.render = function () {
         var el = this.container;
         var width = el.clientWidth;
         var height = el.clientHeight;
@@ -289,5 +289,5 @@
         el.appendChild(tip);
     };
 
-    global.CfaChart = CfaChart;
+    global.EacfaChart = EacfaChart;
 })(window);
