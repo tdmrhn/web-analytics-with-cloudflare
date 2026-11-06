@@ -176,7 +176,7 @@ add_action('admin_init', function() {
     if (isset($_POST['cf_analytics_save_appearance'])) {
         check_admin_referer('cf_analytics_appearance');
 
-        if (eacfa_set_theme(isset($_POST['cf_analytics_theme']) ? sanitize_key($_POST['cf_analytics_theme']) : 'light')) {
+        if (eacfa_set_theme(isset($_POST['cf_analytics_theme']) ? sanitize_key($_POST['cf_analytics_theme']) : 'auto')) {
             wp_safe_redirect(EACFA_Live::dashboard_url(array('section' => 'settings', 'eacfa_saved' => 'appearance')));
             exit;
         }
@@ -394,7 +394,7 @@ function eacfa_render_settings() {
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <p class="cfa-hint">Pages always open instantly with the data already saved. This sets how old that data may get before the next visit refreshes it in the background, after the page has loaded. Nothing runs on a timer. &ldquo;Manual&rdquo; keeps what you see until you click Refresh in the dashboard header (a new day still starts with a new lookup). The default is 10 min.</p>
+                <p class="cfa-hint">Pages always open instantly with the data already saved. This sets how old that data may get before the next visit refreshes it in the background, after the page has loaded. Nothing runs on a timer. &ldquo;Manual&rdquo; keeps what you see until you click Refresh in the dashboard header (a new day still starts with a new lookup). The default is 30 min.</p>
                 <noscript><button type="submit" class="cfa-btn">Save</button></noscript>
             </form>
         </section>
@@ -416,10 +416,9 @@ function eacfa_render_settings() {
                 <p class="cfa-hint">Saves as soon as you pick an option. Applies to the dashboard, the dashboard widget and this page, for your user only. &ldquo;System&rdquo; follows your device setting.</p>
                 <noscript><button type="submit" class="cfa-btn">Save</button></noscript>
             </form>
-        </section>
 
-        <section class="cfa-card cfa-pad">
-            <div class="cfa-card-head"><h3>Primary color</h3></div>
+            <div class="cfa-subsection">
+                <strong class="cfa-subtitle">Primary color</strong>
             <form method="post" id="cf-primary-form">
                 <?php wp_nonce_field('cf_analytics_primary_color'); ?>
                 <div class="cfa-field">
@@ -433,6 +432,7 @@ function eacfa_render_settings() {
                 </div>
                 <p class="cfa-hint">Used for buttons, highlights and the chart lines. Every other tone is derived from this color. Good, needs improvement and poor keep their own colors so the Core Web Vitals ratings stay readable. Applies to everyone who uses this site's dashboard.</p>
             </form>
+            </div>
         </section>
 
 

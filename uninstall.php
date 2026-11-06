@@ -12,7 +12,8 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 delete_option('cf_analytics_settings');          // encrypted token and zone / account / site IDs
 delete_option('cf_analytics_cache_gen');
 delete_option('cf_analytics_refresh_interval');
-delete_option('cf_analytics_primary_color');  // accent color
+delete_option('cf_analytics_primary_color');
+delete_option('cf_analytics_paths');  // accent color
 
 delete_transient('cf_analytics_last_error');
 delete_transient('eacfa_valid_paths');

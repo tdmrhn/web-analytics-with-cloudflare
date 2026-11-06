@@ -3,7 +3,7 @@ Contributors: dmrhn
 Tags: cloudflare, web analytics, core web vitals, performance, statistics
 Requires at least: 5.3
 Tested up to: 7.1
-Stable tag: 0.3
+Stable tag: 0.3.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -80,6 +80,10 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 
 == Changelog ==
 
+= 0.3.1 =
+* One shared cache for the dashboard, widget and admin bar
+* Improved refresh cache when new data arrives
+
 = 0.3 =
 * All scripts and styles are loaded with WordPress enqueue functions; no inline script or style blocks remain
 * Fixed a false "could not be saved" message for the refresh interval
@@ -99,3 +103,8 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 * Light, dark and system themes; the header toggle shows a crescent (switch to dark) or a sun (switch to light)
 * Settings are verified after saving
 * Charts drawn by a small script bundled with the plugin (no external scripts)
+
+== Upgrade Notice ==
+
+= 0.1 =
+If you tested an earlier build named "Cloudflare Analytics", deactivate and delete it first, then activate this plugin. Your saved settings are kept.

@@ -51,16 +51,17 @@ class EACFA_Analytics_Widget {
     }
 
     /**
-     * AJAX: fetch fresh data (this is what updates the cache after the page has loaded)
+     * AJAX: the cached 30-day numbers, read from the cache only. Used to redraw the widget in place
+     * after the background refresh has finished.
      */
     public function ajax_data() {
         check_ajax_referer('cf_analytics_widget_data', 'nonce');
 
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('manage_options') || !EACFA_API::is_configured()) {
             wp_send_json_error('Unauthorized');
         }
 
-        $series = EACFA_Live::series('30days', false, true);
+        $series = EACFA_Live::series('30days', true);
 
         if (empty($series['success'])) {
             wp_send_json_error(isset($series['message']) ? $series['message'] : 'Could not load analytics.');
@@ -81,9 +82,8 @@ class EACFA_Analytics_Widget {
         }
 
         // Cache only: serve what we have (fresh or stale) without calling Cloudflare.
-        EACFA_Live::$no_queue = true;
+        EACFA_Live::queue_stale();
         $series = EACFA_Live::series('30days', true);
-        EACFA_Live::$no_queue = false;
 
         $data = !empty($series['success']) ? $this->payload($series) : null;
 

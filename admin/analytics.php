@@ -45,7 +45,7 @@ function eacfa_asset_version($relative_path) {
 
 function eacfa_current_theme() {
     $theme = get_user_meta(get_current_user_id(), 'cf_analytics_theme', true);
-    return in_array($theme, array('light', 'dark', 'auto'), true) ? $theme : 'light';
+    return in_array($theme, array('light', 'dark', 'auto'), true) ? $theme : 'auto';
 }
 
 /**
@@ -311,7 +311,8 @@ add_action('admin_enqueue_scripts', function ($hook) {
     wp_add_inline_style('eacfa-admin', eacfa_palette_css());
 
     wp_enqueue_script('eacfa-chart', EACFA_PLUGIN_URL . 'assets/js/cfa-chart.js', array(), eacfa_asset_version('assets/js/cfa-chart.js'), true);
-    wp_enqueue_script('eacfa-dashboard', EACFA_PLUGIN_URL . 'assets/js/cfa-dashboard.js', array('eacfa-chart'), eacfa_asset_version('assets/js/cfa-dashboard.js'), true);
+    wp_enqueue_script('eacfa-live', EACFA_PLUGIN_URL . 'assets/js/cfa-live.js', array(), eacfa_asset_version('assets/js/cfa-live.js'), true);
+    wp_enqueue_script('eacfa-dashboard', EACFA_PLUGIN_URL . 'assets/js/cfa-dashboard.js', array('eacfa-chart', 'eacfa-live'), eacfa_asset_version('assets/js/cfa-dashboard.js'), true);
 
     if ($is_plugin_page && eacfa_param('section') === 'settings') {
         wp_enqueue_style('wp-components');
@@ -328,7 +329,7 @@ add_action('admin_init', function () {
     // Refresh data
     if (eacfa_has_param('eacfa_refresh')) {
         check_admin_referer('eacfa_refresh');
-        EACFA_Live::refresh_cache();
+        EACFA_Live::queue_manual();
         wp_safe_redirect(remove_query_arg(array('eacfa_refresh', '_wpnonce')));
         exit;
     }
@@ -594,6 +595,12 @@ function eacfa_analytics_page() {
     $refresh_url = wp_nonce_url(eacfa_url(array_merge($args, array('eacfa_refresh' => 1))), 'eacfa_refresh');
     $settings_url = eacfa_url(array('section' => 'settings', 'range' => $range));
 
+    // Shared cache: apply a pending manual refresh, and queue anything stale for the page-load refresh.
+    EACFA_Live::apply_pending();
+    if (!$is_settings) {
+        EACFA_Live::queue_stale();
+    }
+
     $title = $is_settings ? 'Settings' : $sections[$section][0];
     ?>
     <div class="wrap cfa-wrap">
@@ -659,13 +666,14 @@ function eacfa_analytics_page() {
                             <span class="dashicons dashicons-admin-generic"></span>
                         </a>
                         <?php if (!$is_settings): ?>
-                            <a class="cfa-btn" href="<?php echo esc_url($refresh_url); ?>" title="Fetch fresh data from Cloudflare">
+                            <a class="cfa-btn" data-eacfa-refresh="1" href="<?php echo esc_url($refresh_url); ?>" title="Fetch fresh data from Cloudflare">
                                 <span class="dashicons dashicons-update"></span> Refresh
                             </a>
                         <?php endif; ?>
                     </div>
                 </header>
 
+                <div id="eacfa-status" class="cfa-notice is-error" hidden></div>
                 <?php
                 if (eacfa_param('eacfa_notice') === 'save_failed') {
                     ?>

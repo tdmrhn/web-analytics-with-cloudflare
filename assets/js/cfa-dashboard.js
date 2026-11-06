@@ -1,5 +1,5 @@
 /**
- * Easy Analytics dashboard: theme toggle, chart setup and background section loading.
+ * Easy Analytics dashboard: theme toggle, Refresh button, chart setup and background section loading.
  * Settings come from the hidden #eacfa-dashboard-config element printed by the page.
  */
 (function () {
@@ -24,6 +24,13 @@
             var dark = body.classList.contains('cfa-theme-dark') ||
                 (body.classList.contains('cfa-theme-auto') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
             link.href = dark ? link.getAttribute('data-to-light') : link.getAttribute('data-to-dark');
+        });
+    }
+
+    function bindRefreshButtons() {
+        document.querySelectorAll('[data-eacfa-refresh]').forEach(function (btn) {
+            btn.setAttribute('data-label', btn.textContent.trim());
+            btn.addEventListener('click', function () { btn.textContent = 'Refreshing\u2026'; });
         });
     }
 
@@ -81,12 +88,8 @@
                     if (upd) { upd.textContent = res.data.updated ? '\u00B7 ' + res.data.updated : ''; }
                     if (window.eacfaChartInit) { window.eacfaChartInit(); }
 
-                    if (res.data.jobs && res.data.jobs.length) {
-                        var more = new URLSearchParams();
-                        more.append('action', 'cf_analytics_refresh');
-                        more.append('nonce', res.data.refresh_nonce);
-                        more.append('jobs', JSON.stringify(res.data.jobs));
-                        fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: more }).catch(function () {});
+                    if (res.data.jobs && res.data.jobs.length && window.eacfaRunQueue) {
+                        window.eacfaRunQueue({ action: 'cf_analytics_refresh', ajaxUrl: cfg.ajaxUrl, nonce: res.data.refresh_nonce }, res.data.jobs);
                     }
                 } else {
                     box.innerHTML = '<div class="cfa-notice is-error"><strong>Couldn\u2019t load this data.</strong> ' +
@@ -101,6 +104,7 @@
 
     function init() {
         bindThemeToggle();
+        bindRefreshButtons();
 
         if (cfg.updated) {
             var el = document.getElementById('cfa-updated');

@@ -5,7 +5,7 @@
  * Reads Cloudflare Web Analytics (RUM) straight from Cloudflare and keeps results in transients
  * with stale-while-revalidate: cached data is always served first, and old data is refreshed in
  * a separate request after the page has loaded. The refresh interval is a setting (default
- * 10 minutes, or manual only). Nothing is written to custom database tables.
+ * 30 minutes, or manual only). Nothing is written to custom database tables.
  *
  * Page views = count, visits = sum.visits (the same definitions Cloudflare's dashboard uses).
  * Days start at midnight in the WordPress timezone.
@@ -16,7 +16,8 @@ if (!defined('ABSPATH')) {
 }
 
 class EACFA_Live {
-    const TTL_LIVE = 600;   // how long data counts as fresh
+    const TTL_LIVE = 1800;  // how long data counts as fresh (30 minutes)
+    const PATHS_KEEP = 30;  // per-page counts kept for refresh
     const TTL_PAST = 3600;  // finished ranges (yesterday) stay fresh longer
     const TTL_FAIL = 30;    // failures are remembered briefly
     const PATH_LIMIT = 1000;   // size of the shared page-path list (pages, overview, admin bar)
@@ -280,41 +281,190 @@ class EACFA_Live {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('cf_analytics_refresh'),
             'jobs'    => wp_json_encode(array_values(self::$queue)),
+            'reload'  => is_admin(),
         ));
     }
 
     /**
-     * Run one queued refresh (validated; called from the AJAX handler)
+     * Every dataset the dashboard, widget and admin bar can show for these ranges, as refresh jobs.
+     * Each job is array(method, args), the same shape the browser sends back and the cache keys use.
      */
-    public static function run_job($method, $args) {
-        $range = self::sanitize_range(isset($args[0]) ? (string) $args[0] : '', '7days');
+    public static function dataset_jobs($ranges, $paths = array()) {
+        $breakdowns = array(
+            array('refererHost', 20),
+            array('refererHost', 50),
+            array('countryName', 30),
+            array('countryName', 100),
+            array('userAgentBrowser', 20),
+            array('userAgentOS', 20),
+            array('deviceType', 10),
+            array('requestPath', self::PATH_LIMIT),
+        );
 
-        // One refresh per dataset at a time.
-        $lock = 'eacfa_lock_' . md5($method . '|' . wp_json_encode($args));
-        if (get_transient($lock)) {
-            return;
+        $jobs = array();
+        foreach ($ranges as $range) {
+            $jobs[] = array('series', array($range));
+            $jobs[] = array('vitals', array($range));
+            $jobs[] = array('vitals_by_page', array($range));
+
+            foreach ($breakdowns as $b) {
+                $jobs[] = array('breakdown', array($range, $b[0], $b[1]));
+            }
+
+            foreach ($paths as $path) {
+                $jobs[] = array('page_views', array($range, $path));
+            }
         }
-        set_transient($lock, 1, 60);
+
+        return $jobs;
+    }
+
+    /**
+     * Run one job. $force = fetch from Cloudflare; otherwise only read the cache and queue what is stale.
+     */
+    private static function call_job($method, $args, $cache_only, $force) {
+        $range = self::sanitize_range(isset($args[0]) ? (string) $args[0] : '', '7days');
 
         switch ($method) {
             case 'series':
-                self::series($range, false, true);
-                break;
-            case 'breakdown':
-                self::breakdown($range, isset($args[1]) ? (string) $args[1] : '', max(1, min(self::PATH_LIMIT, isset($args[2]) ? (int) $args[2] : 50)), false, true);
-                break;
+                return self::series($range, $cache_only, $force);
+
             case 'vitals':
-                self::vitals($range, false, true);
-                break;
+                return self::vitals($range, $cache_only, $force);
+
             case 'vitals_by_page':
-                self::vitals_by_page($range, false, true);
-                break;
+                return self::vitals_by_page($range, $cache_only, $force);
+
+            case 'breakdown':
+                $dimension = isset($args[1]) ? (string) $args[1] : '';
+                $limit = max(1, min(self::PATH_LIMIT, isset($args[2]) ? (int) $args[2] : 50));
+                return self::breakdown($range, $dimension, $limit, $cache_only, $force);
+
             case 'page_views':
-                self::page_views($range, isset($args[1]) ? (string) $args[1] : '/', false, true);
-                break;
+                $path = self::clean_path(isset($args[1]) ? (string) $args[1] : '/');
+                return $force ? self::refresh_page_views($range, $path) : self::page_views($range, $path, true, false);
         }
 
+        return array('success' => false);
+    }
+
+    /**
+     * Run one queued refresh (validated; called from the AJAX handler).
+     * Returns 'ok' (fetched), 'failed', or 'busy' (another request is already fetching it).
+     */
+    public static function run_job($method, $args) {
+        $lock = 'eacfa_lock_' . md5((string) $method . '|' . wp_json_encode($args));
+        if (get_transient($lock)) {
+            return 'busy';
+        }
+        set_transient($lock, 1, 60);
+
+        $res = self::call_job((string) $method, is_array($args) ? $args : array(), false, true);
         delete_transient($lock);
+
+        return !empty($res['success']) ? 'ok' : 'failed';
+    }
+
+    /**
+     * Page-load check (widget and analytics dashboard): queue a refresh for the summary series of
+     * today, 7 days and 30 days when they are stale or missing. Only reads the cache here.
+     * Each dashboard section refreshes its own data when it is opened, and the Refresh button
+     * refreshes everything.
+     */
+    public static function queue_stale() {
+        $missed = self::$missed;
+
+        foreach (array('today', '7days', '30days') as $range) {
+            self::series($range, true, false);
+        }
+
+        self::$missed = $missed;
+    }
+
+    /**
+     * Manual refresh: every dataset for every range, including yesterday. Stored for the user and
+     * applied on the next page load, which then runs the queue and reloads.
+     */
+    public static function queue_manual() {
+        $jobs = self::dataset_jobs(array('today', 'yesterday', '7days', '30days'), self::tracked_paths());
+        set_transient(self::manual_key(), $jobs, 5 * MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * Put a pending manual refresh into the queue (called at the start of the dashboard page).
+     */
+    public static function apply_pending() {
+        $key = self::manual_key();
+        $jobs = get_transient($key);
+
+        if (!is_array($jobs)) {
+            return;
+        }
+
+        delete_transient($key);
+
+        foreach ($jobs as $job) {
+            self::queue_refresh($job);
+        }
+    }
+
+    private static function manual_key() {
+        return 'eacfa_manual_' . get_current_user_id();
+    }
+
+    /**
+     * One page's count from the shared page list. Only a page outside a full list needs its own
+     * query, and that is the only per-page entry that is ever fetched.
+     */
+    public static function refresh_page_views($range_key, $path) {
+        $path = self::clean_path($path);
+        $bd = self::breakdown($range_key, 'requestPath', self::PATH_LIMIT, false, false);
+
+        if (empty($bd['success'])) {
+            return $bd;
+        }
+
+        $wanted = self::normalize_path($path);
+        foreach ($bd['rows'] as $row) {
+            if (self::normalize_path($row['key']) === $wanted) {
+                return array('success' => true);
+            }
+        }
+
+        if (count($bd['rows']) < self::PATH_LIMIT) {
+            return array('success' => true);
+        }
+
+        return self::page_views_exact($range_key, $path, false, true);
+    }
+
+    /**
+     * Remember a page the front-end admin bar counted, so its per-page count joins the refresh.
+     */
+    public static function track_path($path) {
+        $list = get_option('cf_analytics_paths', array());
+        if (!is_array($list)) {
+            $list = array();
+        }
+
+        if (isset($list[$path]) && time() - (int) $list[$path] < DAY_IN_SECONDS) {
+            return;
+        }
+
+        $list[$path] = time();
+        arsort($list);
+        $list = array_slice($list, 0, self::PATHS_KEEP, true);
+
+        update_option('cf_analytics_paths', $list, false);
+    }
+
+    /**
+     * Tracked page paths, most recently seen first.
+     */
+    public static function tracked_paths() {
+        $list = get_option('cf_analytics_paths', array());
+
+        return is_array($list) ? array_map('strval', array_keys($list)) : array();
     }
 
     /**
@@ -799,7 +949,7 @@ class EACFA_Live {
                 'views'   => (int) (isset($row['count']) ? $row['count'] : 0),
                 'visits'  => (int) (isset($row['sum']['visits']) ? $row['sum']['visits'] : 0)
             );
-        }, null, $force);
+        }, array('page_views', array($range_key, $path)), $force);
     }
 
     /* ------------------------------------------------------------------
@@ -1142,17 +1292,27 @@ add_action('wp_ajax_cf_analytics_refresh', function () {
 
     ignore_user_abort(true);
 
-    $done = 0;
+    $changed = 0;
+    $failed = 0;
+    $busy = 0;
 
-    foreach (array_slice($jobs, 0, 10) as $job) {
+    foreach (array_slice($jobs, 0, 5) as $job) {
         if (!is_array($job) || empty($job[0]) || !isset($job[1]) || !is_array($job[1])) {
             continue;
         }
-        EACFA_Live::run_job((string) $job[0], $job[1]);
-        $done++;
+
+        $result = EACFA_Live::run_job((string) $job[0], $job[1]);
+
+        if ($result === 'ok') {
+            $changed++;
+        } elseif ($result === 'busy') {
+            $busy++;
+        } else {
+            $failed++;
+        }
     }
 
-    wp_send_json_success(array('refreshed' => $done));
+    wp_send_json_success(array('changed' => $changed, 'failed' => $failed, 'busy' => $busy));
 });
 
 /**

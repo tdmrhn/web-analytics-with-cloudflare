@@ -1,12 +1,14 @@
 # Changelog
 
-## [0.2.3]
+## [0.3.1] - 2026-11-06
 
-- Fixed a false "could not be saved" message for the refresh interval
+- One shared cache for the dashboard, widget and admin bar
+- Improved refresh cache when new data arrives
 
-## [0.2.2]
+## [0.3] - 2026-11-05
 
 - All scripts and styles are loaded with WordPress enqueue functions; no inline script or style blocks remain
+- Fixed a false "could not be saved" message for the refresh interval
 
 ## [0.2] - 2026-11-05
 

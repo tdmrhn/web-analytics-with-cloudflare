@@ -65,6 +65,7 @@ class EACFA_Analytics_Admin_Bar {
 
         if ($front) {
             $path = $this->current_path();
+            EACFA_Live::track_path($path);
             $res = EACFA_Live::page_views('today', $path, true);
             if (!empty($res['success'])) {
                 $views = number_format_i18n($res['views']);

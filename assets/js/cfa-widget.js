@@ -1,6 +1,7 @@
 /**
- * Easy Analytics dashboard widget: draws the chart and refreshes stale data in place.
- * Data and settings come from the hidden #eacfa-widget-config element.
+ * Easy Analytics dashboard widget: draws the chart and the "Updated" time.
+ * Data comes from the shared cache via the hidden #eacfa-widget-config element. Stale data is
+ * refreshed by the page-load queue; when it finishes the widget fetches the cache again and redraws in place.
  */
 (function () {
     'use strict';
@@ -15,11 +16,8 @@
     if (!cfg) { return; }
 
     var initial = cfg.initial;
-    var ajaxUrl = cfg.ajaxUrl;
-    var nonce = cfg.nonce;
     var colors = cfg.colors || {};
     var chart = null;
-
     var fetchedAt = null; // client clock time the data was fetched (server age subtracted)
 
     function ago(seconds) {
@@ -41,7 +39,6 @@
         if (d.age !== null && d.age !== undefined) { fetchedAt = Date.now() - d.age * 1000; tick(); }
 
         root.classList.remove('is-loading');
-        document.getElementById('cfw-error').hidden = true;
 
         ['visits', 'views'].forEach(function (key) {
             var cell = root.querySelector('.cfw-stat[data-key="' + key + '"]');
@@ -72,22 +69,18 @@
         });
     }
 
+    // Fetch the cached numbers again and redraw in place (no page reload).
     function refresh() {
+        if (!window.fetch || !window.URLSearchParams) { return; }
+
         var body = new URLSearchParams();
         body.append('action', 'cf_analytics_widget_data');
-        body.append('nonce', nonce);
+        body.append('nonce', cfg.nonce);
 
-        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+        fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
             .then(function (r) { return r.json(); })
             .then(function (res) {
-                if (res && res.success) {
-                    render(res.data);
-                } else if (!initial) {
-                    var err = document.getElementById('cfw-error');
-                    err.textContent = (res && res.data) ? res.data : 'Could not load analytics.';
-                    err.hidden = false;
-                    document.getElementById('cfw-root').classList.remove('is-loading');
-                }
+                if (res && res.success) { render(res.data); }
             })
             .catch(function () {});
     }
@@ -96,15 +89,9 @@
         if (initial) { render(initial); }
     }
 
-    // Stale or missing data: update after the page has finished loading.
-    function update() {
-        if ((!initial || initial.stale) && window.fetch && window.URLSearchParams) {
-            setTimeout(refresh, 300);
-        }
-    }
+    document.addEventListener('eacfa:refreshed', refresh);
 
     setInterval(tick, 30000);
 
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', draw); } else { draw(); }
-    if (document.readyState === 'complete') { update(); } else { window.addEventListener('load', update); }
 })();
