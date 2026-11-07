@@ -111,7 +111,7 @@ body.cfa-theme-dark #cf_analytics_widget {
 /* ---------- Header ---------- */
 
 .cfa-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cfa-sizes-12) var(--cfa-sizes-16); }
-.cfa-title { margin: 0; font-size: var(--cfa-sizes-title); font-weight: 650; letter-spacing: -.01em; line-height: 1.15; color: var(--cfa-colors-text); }
+.cfa-title { margin: 0; font-size: var(--cfa-sizes-title); font-weight: 650; letter-spacing: -.01em; line-height: var(--cfa-sizes-28); color: var(--cfa-colors-text); }
 .cfa-head-title { display: flex; flex-direction: column; gap: var(--cfa-sizes-2); }
 .cfa-sub { margin: 0; color: var(--cfa-colors-muted); font-size: var(--cfa-sizes-12); }
 .cfa-tools, .cfa-actions, .cfa-color-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cfa-sizes-8); }
@@ -294,6 +294,7 @@ body.cfa-page .notice-warning { background: var(--cfa-colors-warning-bg); border
 .cfa-field label { display: block; font-size: var(--cfa-sizes-14); font-weight: 600; }
 .cfa-field :is(input[type="text"], input[type="password"], select) { width: 100%; max-width: 30rem; padding: var(--cfa-sizes-8) var(--cfa-sizes-12); background: var(--cfa-colors-surface); color: var(--cfa-colors-text); border: var(--cfa-sizes-1) solid var(--cfa-colors-border); border-radius: var(--cfa-radius-sm); font-size: var(--cfa-sizes-14); }
 .cfa-field :is(input, select):focus { border-color: var(--cfa-accent); box-shadow: 0 0 0 var(--cfa-sizes-1) var(--cfa-accent); outline: none; }
+.cfa-inline { display: flex; gap: var(--cfa-sizes-6); }
 .cfa-inline input { flex: 1 1 13.75rem; }
 .cfa-advanced { display: flex; flex-direction: column; gap: var(--cfa-sizes-12); }
 .cfa-advanced summary { color: var(--cfa-colors-muted); font-size: var(--cfa-sizes-14); cursor: pointer; }
@@ -309,7 +310,7 @@ body.cfa-page .notice-warning { background: var(--cfa-colors-warning-bg); border
 .cfa-steps > li { counter-increment: step; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--cfa-sizes-4) var(--cfa-sizes-12); margin: 0; padding: 0; }
 .cfa-steps > li::before { content: counter(step); flex: none; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--cfa-accent-soft); color: var(--cfa-accent); font-size: var(--cfa-sizes-12); font-weight: 600; }
 .cfa-steps .cfa-hint { flex: 1 0 100%; margin: 0; padding-left: 2.25rem; }
-.cfa-perms { padding: var(--cfa-sizes-12) 0; }
+.cfa-perms { display: flex; flex-wrap: wrap; gap: var(--cfa-sizes-6); padding: var(--cfa-sizes-12) 0; }
 .cfa-perms span { padding: var(--cfa-sizes-4) var(--cfa-sizes-12); background: var(--cfa-accent-soft); color: var(--cfa-colors-text); border-radius: var(--cfa-radius-pill); font-size: var(--cfa-sizes-12); }
 
 .cfa-checks { display: flex; flex-direction: column; gap: var(--cfa-sizes-8); padding: 0; list-style: none; }
@@ -377,10 +378,12 @@ body.cfa-page .notice-warning { background: var(--cfa-colors-warning-bg); border
 /* ---------- Mobile: the navigation becomes one scrollable row; everything else flows by itself ---------- */
 
 @media (max-width: 48.875em) {
-    .cfa-nav { flex: 1 1 100%; position: static; flex-direction: row; align-items: center; gap: var(--cfa-sizes-6); padding: var(--cfa-sizes-6); }
+    .cfa-nav { flex: 1 1 100%; position: static; flex-direction: row; align-items: center; gap: var(--cfa-sizes-6); padding: var(--cfa-sizes-6); overflow-x: scroll; }
     .cfa-brand-text, .cfa-nav-link .dashicons { display: none; }
     .cfa-nav-list { flex-direction: row; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-    .cfa-nav-link { flex: none; white-space: nowrap; }
+    .cfa-nav-link { flex: none; white-space: nowrap; }	
+    .cfa-tiles, .cfa-skel-kpis { grid-template-columns: repeat(2, 1fr); }
+	.cfa-head-center { order: 2; }
 }
 
 /* ---------- Skeletons: every block is an <i> with the same shimmer ---------- */
