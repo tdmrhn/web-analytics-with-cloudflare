@@ -107,14 +107,9 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 = 0.1 =
 * First release
 * Cloudflare Web Analytics in WordPress: visits, page views, page load time and Core Web Vitals (LCP, INP, CLS) with trends against the previous period
-* Pages, referrers, countries, browsers, operating systems and devices
+* Sections: Overview, Pages, Referrers, Countries, Technology, Core Web Vitals
 * Dashboard widget, and an admin bar counter with the exact views of the page you are viewing
 * Pages open from saved data and refresh in the background; choose the interval or refresh manually
 * Light, dark and system themes; the header toggle shows a crescent (switch to dark) or a sun (switch to light)
-* Settings are verified after saving
-* Charts drawn by a small script bundled with the plugin (no external scripts)
-
-== Upgrade Notice ==
-
-= 0.1 =
-If you tested an earlier build named "Cloudflare Analytics", deactivate and delete it first, then activate this plugin. Your saved settings are kept.
+* Dependency-free SVG charts drawn by a small script bundled with the plugin (no external scripts)
+* Token-only authentication, token stored encrypted; `uninstall.php` removes everything the plugin saved
