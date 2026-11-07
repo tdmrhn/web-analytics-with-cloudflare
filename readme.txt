@@ -3,7 +3,7 @@ Contributors: dmrhn
 Tags: cloudflare, web analytics, core web vitals, performance, statistics
 Requires at least: 5.3
 Tested up to: 7.1
-Stable tag: 0.3.1
+Stable tag: 0.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -80,9 +80,19 @@ This plugin connects to the Cloudflare API to read your Web Analytics data. With
 
 == Changelog ==
 
-= 0.3.1 =
-* One shared cache for the dashboard, widget and admin bar
-* Improved refresh cache when new data arrives
+= 0.5 =
+* Stylesheet reworked on design tokens
+* Chart colors and sizes come from the stylesheet, with light and dark themes
+* Numbered setup steps, clearer settings spacing, ghost "View all" links
+* Layout spacing uses flex and grid gaps instead of margins
+* Shimmer no longer turns off with the system's reduced-motion setting
+
+= 0.4 =
+* Dashboard, widget and admin bar share one cache
+* Widget updates in place as new data arrives
+* Analytics overview loads first after a cache clear; the rest loads in the background
+* Refresh button fetches everything, including yesterday
+* Skeleton loading for cards
 
 = 0.3 =
 * All scripts and styles are loaded with WordPress enqueue functions; no inline script or style blocks remain

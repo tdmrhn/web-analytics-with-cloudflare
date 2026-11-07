@@ -12,7 +12,6 @@
     }
 
     var cfg = readConfig('eacfa-dashboard-config') || {};
-    var colors = cfg.colors || {};
 
     // With the "System" theme the page follows the device, so decide at click time.
     function bindThemeToggle() {
@@ -49,8 +48,8 @@
             label: 'Visits and page views over time',
             labels: d.labels,
             datasets: [
-                { label: 'Visits',     data: d.visits, color: colors.visits || '#8458c8' },
-                { label: 'Page views', data: d.views,  color: colors.views || '#c84fb0' }
+                { label: 'Visits',     data: d.visits, series: 1 },
+                { label: 'Page views', data: d.views,  series: 2 }
             ],
             dotRadius: d.labels.length <= 31 ? 3 : 0,
             lineWidth: 2.5,

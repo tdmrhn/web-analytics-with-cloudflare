@@ -28,6 +28,7 @@ class EACFA_Live {
 
     /** While true, every data call reads the cache only (a miss is recorded in $missed). */
     public static $cache_only_mode = false;
+    public static $priority_count = 0; // queue entries that come before the background jobs
     public static $missed = false;
 
     private static $queue = array();
@@ -282,6 +283,7 @@ class EACFA_Live {
             'nonce'   => wp_create_nonce('cf_analytics_refresh'),
             'jobs'    => wp_json_encode(array_values(self::$queue)),
             'reload'  => is_admin(),
+            'priority' => (int) self::$priority_count,
         ));
     }
 
@@ -374,8 +376,44 @@ class EACFA_Live {
     public static function queue_stale() {
         $missed = self::$missed;
 
-        foreach (array('today', '7days', '30days') as $range) {
+        // 30 days first: it is what the widget shows, so it is queued (and refreshed) first.
+        foreach (array('30days', 'today', '7days') as $range) {
             self::series($range, true, false);
+        }
+
+        self::$missed = $missed;
+    }
+
+    /**
+     * What the overview of one range shows, as refresh jobs. These are queued first.
+     */
+    public static function overview_jobs($range) {
+        return array(
+            array('series', array($range)),
+            array('vitals', array($range)),
+            array('breakdown', array($range, 'requestPath', self::PATH_LIMIT)),
+            array('breakdown', array($range, 'refererHost', 20)),
+            array('breakdown', array($range, 'countryName', 30)),
+            array('breakdown', array($range, 'userAgentBrowser', 20)),
+        );
+    }
+
+    /**
+     * Analytics dashboard page load: queue the overview of the selected range first (the browser
+     * reloads once it is in), then everything else of the summary ranges in the background.
+     * Only stale or missing datasets are queued. Reads the cache only; the browser runs the queue.
+     */
+    public static function queue_page_set($range) {
+        $missed = self::$missed;
+
+        foreach (self::overview_jobs($range) as $job) {
+            self::call_job($job[0], $job[1], true, false);
+        }
+        self::$priority_count = count(self::$queue);
+
+        $ranges = array_values(array_unique(array_merge(array($range), array('30days', 'today', '7days'))));
+        foreach (self::dataset_jobs($ranges, self::tracked_paths()) as $job) {
+            self::call_job($job[0], $job[1], true, false);
         }
 
         self::$missed = $missed;

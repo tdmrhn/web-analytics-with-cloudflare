@@ -16,7 +16,6 @@
     if (!cfg) { return; }
 
     var initial = cfg.initial;
-    var colors = cfg.colors || {};
     var chart = null;
     var fetchedAt = null; // client clock time the data was fetched (server age subtracted)
 
@@ -59,8 +58,8 @@
             label: 'Visits and page views, last 30 days',
             labels: d.labels,
             datasets: [
-                { label: 'Page views', data: d.views,  color: colors.views || '#c84fb0' },
-                { label: 'Visits',     data: d.visits, color: colors.visits || '#8458c8' }
+                { label: 'Page views', data: d.views,  series: 2 },
+                { label: 'Visits',     data: d.visits, series: 1 }
             ],
             dotRadius: 4,
             lineWidth: 4,

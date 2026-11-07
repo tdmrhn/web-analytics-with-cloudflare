@@ -248,6 +248,10 @@ function eacfa_palette() {
         ),
     );
 
+    // Lines on the dark background: a lighter tint of the same colour.
+    $palette['series_visits_dark'] = eacfa_mix($palette['series_visits'], '#ffffff', 0.25);
+    $palette['series_views_dark'] = eacfa_mix($palette['series_views'], '#ffffff', 0.25);
+
     return $palette;
 }
 
@@ -257,15 +261,18 @@ function eacfa_palette() {
  */
 function eacfa_palette_css() {
     $p = eacfa_palette();
-    $vars = function ($t) {
+    $vars = function ($t, $series) {
         return '--cfa-accent:' . $t['accent'] . ';--cfa-accent-hover:' . $t['accent_hover']
-            . ';--cfa-accent-soft:' . $t['accent_soft'] . ';--cfa-accent-ink:' . $t['accent_ink'] . ';';
+            . ';--cfa-accent-soft:' . $t['accent_soft'] . ';--cfa-accent-ink:' . $t['accent_ink']
+            . ';--cfa-chart-1:' . $series[0] . ';--cfa-chart-2:' . $series[1] . ';';
     };
+    $light = array($p['series_visits'], $p['series_views']);
+    $dark = array($p['series_visits_dark'], $p['series_views_dark']);
 
-    return '.cfa-wrap,#cf_analytics_widget{' . $vars($p['light']) . '}'
-        . 'body.cfa-theme-dark .cfa-wrap,body.cfa-theme-dark #cf_analytics_widget{' . $vars($p['dark']) . '}'
+    return '.cfa-wrap,#cf_analytics_widget{' . $vars($p['light'], $light) . '}'
+        . 'body.cfa-theme-dark .cfa-wrap,body.cfa-theme-dark #cf_analytics_widget{' . $vars($p['dark'], $dark) . '}'
         . '@media (prefers-color-scheme: dark){'
-        . 'body.cfa-theme-auto .cfa-wrap,body.cfa-theme-auto #cf_analytics_widget{' . $vars($p['dark']) . '}}';
+        . 'body.cfa-theme-auto .cfa-wrap,body.cfa-theme-auto #cf_analytics_widget{' . $vars($p['dark'], $dark) . '}}';
 }
 
 add_filter('admin_body_class', function ($classes) {
@@ -380,6 +387,18 @@ function eacfa_share($value, $total) {
 }
 
 function eacfa_error($res, $inline = false) {
+    // Nothing cached yet: not an error. The card shows a skeleton until the background refresh fills it.
+    if (!empty($res['miss'])) {
+        if ($inline) {
+            // Inside a list card: a few shimmering lines fit the card shell.
+            echo '<div class="cfa-skel-inline" aria-busy="true" aria-label="Loading"><i></i><i></i><i></i></div>';
+        } else {
+            // A whole section with nothing cached yet: show the card layout as skeletons.
+            eacfa_skeleton();
+        }
+        return;
+    }
+
     $msg = isset($res['message']) ? $res['message'] : 'Something went wrong.';
     $class = $inline ? 'cfa-empty is-error' : 'cfa-notice is-error';
     echo '<div class="' . esc_attr($class) . '"><strong>Couldn&rsquo;t load this data.</strong> ' . esc_html($msg) . ' <a href="' . esc_url(eacfa_url(array('section' => 'settings'))) . '">Check settings</a></div>';
@@ -493,8 +512,8 @@ function eacfa_skeleton() {
     ?>
     <div class="cfa-skeleton" aria-busy="true" aria-label="Loading">
         <div class="cfa-skel-kpis"><i></i><i></i><i></i><i></i></div>
-        <div class="cfa-skel-card tall"></div>
-        <div class="cfa-skel-grid"><div class="cfa-skel-card"></div><div class="cfa-skel-card"></div></div>
+        <div class="cfa-skel-card tall"><i></i></div>
+        <div class="cfa-skel-grid"><div class="cfa-skel-card"><i></i><i></i><i></i></div><div class="cfa-skel-card"><i></i><i></i><i></i></div></div>
     </div>
     <?php
 }
@@ -598,7 +617,7 @@ function eacfa_analytics_page() {
     // Shared cache: apply a pending manual refresh, and queue anything stale for the page-load refresh.
     EACFA_Live::apply_pending();
     if (!$is_settings) {
-        EACFA_Live::queue_stale();
+        EACFA_Live::queue_page_set($range);
     }
 
     $title = $is_settings ? 'Settings' : $sections[$section][0];
@@ -666,7 +685,7 @@ function eacfa_analytics_page() {
                             <span class="dashicons dashicons-admin-generic"></span>
                         </a>
                         <?php if (!$is_settings): ?>
-                            <a class="cfa-btn" data-eacfa-refresh="1" href="<?php echo esc_url($refresh_url); ?>" title="Fetch fresh data from Cloudflare">
+                            <a class="cfa-btn is-refresh" data-eacfa-refresh="1" href="<?php echo esc_url($refresh_url); ?>" title="Fetch fresh data from Cloudflare">
                                 <span class="dashicons dashicons-update"></span> Refresh
                             </a>
                         <?php endif; ?>
@@ -685,24 +704,14 @@ function eacfa_analytics_page() {
                     eacfa_render_settings();
                 } else {
                     // The first render reads the cache only (fresh or stale), so the page never waits on
-                    // Cloudflare. If something isn't cached yet, the output is discarded and the section is
-                    // loaded right after the page appears.
+                    // Cloudflare. A card with nothing cached yet shows 'Loading' and the background queue fills it.
                     EACFA_Live::$cache_only_mode = true;
                     EACFA_Live::$missed = false;
                     ob_start();
                     $meta = eacfa_render_section($section, $range);
                     EACFA_Live::$cache_only_mode = false;
 
-                    if (EACFA_Live::$missed) {
-                        ob_end_clean();
-                        $deferred = true;
-                        EACFA_Live::clear_queue(); // the loader below fetches everything itself
-                        echo '<div id="cfa-deferred">';
-                        eacfa_skeleton();
-                        echo '</div>';
-                    } else {
-                        ob_end_flush();
-                    }
+                    ob_end_flush();
 
                     $updated = $deferred ? 'loading…' : eacfa_updated_text($meta);
                 }
@@ -739,7 +748,11 @@ function eacfa_render_overview($range) {
     $meta = array('fetched_at' => isset($series['fetched_at']) ? $series['fetched_at'] : 0);
 
     if (empty($series['success'])) {
-        eacfa_error($series);
+        if (!empty($series['miss'])) {
+            eacfa_skeleton(); // nothing cached yet: show the card layout as skeletons
+        } else {
+            eacfa_error($series);
+        }
         return $meta;
     }
 
@@ -755,23 +768,23 @@ function eacfa_render_overview($range) {
         'views'  => array_values(wp_list_pluck($series['points'], 'views'))
     );
     ?>
-    <section class="cfa-kpis is-four">
-        <div class="cfa-kpi">
+    <section class="cfa-tiles">
+        <div>
             <div class="cfa-kpi-label">Visits</div>
             <div class="cfa-kpi-value"><?php echo esc_html(eacfa_num($t['visits'])); ?></div>
             <div class="cfa-kpi-trend"><?php echo wp_kses(EACFA_Live::trend(EACFA_Live::change($t['visits'], $p ? $p['visits'] : null)), EACFA_Live::allowed_html()); ?></div>
         </div>
-        <div class="cfa-kpi">
+        <div>
             <div class="cfa-kpi-label">Page views</div>
             <div class="cfa-kpi-value"><?php echo esc_html(eacfa_num($t['views'])); ?></div>
             <div class="cfa-kpi-trend"><?php echo wp_kses(EACFA_Live::trend(EACFA_Live::change($t['views'], $p ? $p['views'] : null)), EACFA_Live::allowed_html()); ?></div>
         </div>
-        <div class="cfa-kpi">
+        <div>
             <div class="cfa-kpi-label">Page load time</div>
             <div class="cfa-kpi-value"><?php echo esc_html($t['load_ms'] === null ? "\xE2\x80\x94" : eacfa_num(round($t['load_ms'])) . 'ms'); ?></div>
             <div class="cfa-kpi-trend"><?php echo wp_kses(EACFA_Live::trend($load_change, true), EACFA_Live::allowed_html()); ?></div>
         </div>
-        <div class="cfa-kpi">
+        <div>
             <div class="cfa-kpi-label">Core Web Vitals <span class="cfa-muted">(P75)</span></div>
             <?php if (!empty($vitals['success'])): ?>
                 <div class="cfa-cwv-chips">
@@ -794,8 +807,8 @@ function eacfa_render_overview($range) {
         <div class="cfa-card-head">
             <h3>Traffic</h3>
             <div class="cfa-legend" id="cfa-legend">
-                <button type="button" class="is-on" data-i="0"><i style="background:<?php echo esc_attr(eacfa_palette()['series_visits']); ?>"></i>Visits</button>
-                <button type="button" class="is-on" data-i="1"><i style="background:<?php echo esc_attr(eacfa_palette()['series_views']); ?>"></i>Page views</button>
+                <button type="button" class="is-on" data-i="0"><i class="cfa-series-1"></i>Visits</button>
+                <button type="button" class="is-on" data-i="1"><i class="cfa-series-2"></i>Page views</button>
             </div>
         </div>
         <div class="cfa-chart"><div id="cfa-chart" data-chart="<?php echo esc_attr(wp_json_encode($chart)); ?>"></div></div>
@@ -896,9 +909,9 @@ function eacfa_render_vitals($range) {
             <?php if (isset($m['good'])):
                 $all = $m['good'] + $m['needs'] + $m['poor'];
                 ?>
-                <div class="cfa-dist">
+                <div class="cfa-tiles">
                     <?php foreach (array('good' => 'Good', 'needs' => 'Needs improvement', 'poor' => 'Poor') as $k => $label): ?>
-                        <div class="cfa-dist-item is-<?php echo esc_attr($k); ?>">
+                        <div class="is-<?php echo esc_attr($k); ?>">
                             <span class="cfa-dist-label"><?php echo esc_html($label); ?></span>
                             <span class="cfa-dist-value"><?php echo esc_html(EACFA_Live::pct_text(eacfa_share($m[$k], $all))); ?></span>
                             <span class="cfa-dist-bar"><i style="width: <?php echo esc_attr(round(eacfa_share($m[$k], $all), 1)); ?>%"></i></span>
@@ -907,11 +920,11 @@ function eacfa_render_vitals($range) {
                 </div>
             <?php endif; ?>
 
-            <div class="cfa-pctls">
+            <div class="cfa-tiles">
                 <?php foreach ($percentiles as $key => $label):
                     $rate = EACFA_Live::rating($metric, $m[$key]);
                     ?>
-                    <div class="cfa-pctl">
+                    <div>
                         <span class="cfa-pctl-label"><span class="cfa-dot <?php echo $rate ? 'is-' . esc_attr($rate) : ''; ?>"></span><?php echo esc_html($label); ?></span>
                         <span class="cfa-pctl-value"><?php echo esc_html(EACFA_Live::vital_text($metric, $m[$key])); ?></span>
                     </div>

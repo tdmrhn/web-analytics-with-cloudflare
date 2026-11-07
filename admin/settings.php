@@ -312,10 +312,10 @@ function eacfa_render_settings() {
                 <ul class="cfa-checks" id="cf-checks" hidden></ul>
 
                 <div class="cfa-actions">
-                    <button type="button" class="cfa-btn" id="cf-test-connection">Test connection</button>
+                    <button type="button" class="cfa-btn is-soft" id="cf-test-connection">Test connection</button>
                     <form method="post" style="display:inline;">
                         <?php wp_nonce_field('cf_analytics_refresh_cache'); ?>
-                        <button type="submit" name="cf_analytics_refresh_cache" class="cfa-btn">Clear cache</button>
+                        <button type="submit" name="cf_analytics_refresh_cache" class="cfa-btn is-soft">Clear cache</button>
                     </form>
                 </div>
                 <p class="cfa-hint">Stats are read from Cloudflare and refreshed in the background <?php echo esc_html(EACFA_Live::interval_phrase()); ?>. Only the encrypted token and the IDs above are saved in your database.</p>
@@ -422,7 +422,6 @@ function eacfa_render_settings() {
             <form method="post" id="cf-primary-form">
                 <?php wp_nonce_field('cf_analytics_primary_color'); ?>
                 <div class="cfa-field">
-                    <label for="cf_analytics_primary_color">Accent color</label>
                     <div class="cfa-color-row">
 						<div id="cfa-color-picker"></div>
 						<input type="hidden" id="cf_analytics_primary_color" name="cf_analytics_primary_color" value="<?php echo esc_attr(eacfa_primary_color()); ?>">

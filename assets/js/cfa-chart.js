@@ -2,13 +2,14 @@
  * EacfaChart: a small, dependency-free SVG line/area chart.
  *
  * Smooth lines, area fill, dots, dashed grid, hover tooltip, legend toggling, responsive.
- * Colors come from the CSS variables of the container (--cfa-line, --cfa-faint, --cfa-text,
- * --cfa-surface), so light and dark themes work without any extra code.
+ * No colours or font sizes in here: every visual part has a class, and admin.css styles it.
+ * A dataset picks its colour with `series` (1 = visits, 2 = page views, ...), which maps to
+ * the --cfa-chart-N variables set by the palette (light and dark).
  *
  *   var chart = new EacfaChart(element, {
  *       labels: ['Oct 1', 'Oct 2'],
- *       datasets: [{ label: 'Visits', data: [3, 5], color: '#7b4a9e' }],
- *       dotRadius: 3, lineWidth: 2.5, fontSize: 12, maxXTicks: 8
+ *       datasets: [{ label: 'Visits', data: [3, 5], series: 1 }],
+ *       dotRadius: 3, lineWidth: 2.5, maxXTicks: 8
  *   });
  *   chart.update({ labels: [...], datasets: [{ data: [...] }, ...] });
  *   chart.toggle(0);   // show/hide a dataset, returns the new visibility
@@ -26,11 +27,6 @@
             }
         }
         return el;
-    }
-
-    function cssVar(el, name, fallback) {
-        var value = getComputedStyle(el).getPropertyValue(name);
-        return (value && value.trim()) || fallback;
     }
 
     function formatNumber(n) {
@@ -85,7 +81,7 @@
         this.options = options || {};
         this.labels = this.options.labels || [];
         this.datasets = (this.options.datasets || []).map(function (d) {
-            return { label: d.label, data: d.data || [], color: d.color, visible: d.visible !== false };
+            return { label: d.label, data: d.data || [], series: d.series || 1, visible: d.visible !== false };
         });
 
         container.classList.add('cfa-chart-box');
@@ -138,15 +134,23 @@
         if (!width || !height) { return; }
 
         var o = this.options;
-        var fontSize = o.fontSize || 12;
         var dotRadius = o.dotRadius === undefined ? 3 : o.dotRadius;
-        var lineWidth = o.lineWidth || 2.5;
         var maxXTicks = o.maxXTicks || 8;
-
-        var gridColor = cssVar(el, '--cfa-line', '#e5e7eb');
-        var textColor = cssVar(el, '--cfa-faint', '#9ca3af');
-
         var count = this.labels.length;
+
+        var root = svg('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': o.label || 'Chart' });
+        root.style.display = 'block';
+        if (o.lineWidth) { root.style.setProperty('--cfa-chart-line', o.lineWidth + 'px'); }
+
+        // Axis text is sized by CSS (.cfa-chart-axis). Measure it once, so the margins fit it.
+        el.innerHTML = '';
+        el.appendChild(root);
+        var probe = svg('text', { 'class': 'cfa-chart-axis' });
+        probe.textContent = '0000';
+        root.appendChild(probe);
+        var fontSize = parseFloat(getComputedStyle(probe).fontSize) || 12;
+        root.removeChild(probe);
+
         var visible = this.datasets.filter(function (d) { return d.visible; });
 
         var max = 0;
@@ -173,14 +177,11 @@
         var yAt = function (value) { return m.top + plotH - (value / top) * plotH; };
         var bottom = m.top + plotH;
 
-        var root = svg('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': o.label || 'Chart' });
-        root.style.display = 'block';
-
         // Grid + y labels
         tickValues.forEach(function (t) {
             var y = yAt(t);
-            root.appendChild(svg('line', { x1: m.left, x2: m.left + plotW, y1: y, y2: y, stroke: gridColor, 'stroke-width': 1, 'stroke-dasharray': t === 0 ? '0' : '3 4' }));
-            var label = svg('text', { x: m.left - 8, y: y + fontSize * 0.35, 'text-anchor': 'end', fill: textColor, 'font-size': fontSize });
+            root.appendChild(svg('line', { 'class': 'cfa-chart-grid' + (t === 0 ? ' is-base' : ''), x1: m.left, x2: m.left + plotW, y1: y, y2: y }));
+            var label = svg('text', { 'class': 'cfa-chart-axis', x: m.left - 8, y: y + fontSize * 0.35, 'text-anchor': 'end' });
             label.textContent = formatTick(t);
             root.appendChild(label);
         });
@@ -193,7 +194,7 @@
             var half = (text.length * fontSize * 0.3);
             var anchor = 'middle';
             if (x - half < 0) { anchor = 'start'; } else if (x + half > width) { anchor = 'end'; }
-            var xl = svg('text', { x: x, y: height - 4, 'text-anchor': anchor, fill: textColor, 'font-size': fontSize });
+            var xl = svg('text', { 'class': 'cfa-chart-axis', x: x, y: height - 4, 'text-anchor': anchor });
             xl.textContent = text;
             root.appendChild(xl);
         }
@@ -203,6 +204,7 @@
         this.datasets.forEach(function (d, idx) {
             if (!d.visible) { pointSets[idx] = null; return; }
 
+            var cls = ' cfa-series-' + d.series;
             var pts = d.data.map(function (value, i) { return { x: xAt(i), y: yAt(value) }; });
             pointSets[idx] = pts;
             if (!pts.length) { return; }
@@ -211,24 +213,24 @@
 
             if (pts.length > 1) {
                 var area = line + ' L' + pts[pts.length - 1].x + ',' + bottom + ' L' + pts[0].x + ',' + bottom + ' Z';
-                root.appendChild(svg('path', { d: area, fill: d.color, 'fill-opacity': 0.12, stroke: 'none' }));
+                root.appendChild(svg('path', { 'class': 'cfa-chart-area' + cls, d: area }));
             }
 
-            root.appendChild(svg('path', { d: line, fill: 'none', stroke: d.color, 'stroke-width': lineWidth, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+            root.appendChild(svg('path', { 'class': 'cfa-chart-line' + cls, d: line }));
 
             if (dotRadius > 0) {
                 pts.forEach(function (p) {
-                    root.appendChild(svg('circle', { cx: p.x, cy: p.y, r: dotRadius, fill: d.color }));
+                    root.appendChild(svg('circle', { 'class': 'cfa-chart-dot' + cls, cx: p.x, cy: p.y, r: dotRadius }));
                 });
             }
         });
 
         // Hover layer
-        var guide = svg('line', { x1: 0, x2: 0, y1: m.top, y2: bottom, stroke: gridColor, 'stroke-width': 1, visibility: 'hidden' });
+        var guide = svg('line', { 'class': 'cfa-chart-guide', x1: 0, x2: 0, y1: m.top, y2: bottom, visibility: 'hidden' });
         root.appendChild(guide);
 
-        var hoverDots = this.datasets.map(function (d, idx) {
-            var c = svg('circle', { r: dotRadius + 2, fill: d.color, stroke: cssVar(el, '--cfa-surface', '#fff'), 'stroke-width': 2, visibility: 'hidden' });
+        var hoverDots = this.datasets.map(function (d) {
+            var c = svg('circle', { 'class': 'cfa-chart-hover cfa-series-' + d.series, r: dotRadius + 2, visibility: 'hidden' });
             root.appendChild(c);
             return c;
         });
@@ -261,7 +263,7 @@
                 hoverDots[idx].setAttribute('cx', pts[index].x);
                 hoverDots[idx].setAttribute('cy', pts[index].y);
                 hoverDots[idx].setAttribute('visibility', 'visible');
-                rows += '<div class="cfa-tip-row"><i style="background:' + d.color + '"></i><span></span><b>' + formatNumber(d.data[index]) + '</b></div>';
+                rows += '<div class="cfa-tip-row"><i class="cfa-series-' + d.series + '"></i><span></span><b>' + formatNumber(d.data[index]) + '</b></div>';
             });
 
             tip.innerHTML = '<div class="cfa-tip-title"></div>' + rows;
@@ -284,8 +286,6 @@
         root.addEventListener('pointerdown', move);
         root.addEventListener('pointerleave', hide);
 
-        el.innerHTML = '';
-        el.appendChild(root);
         el.appendChild(tip);
     };
 

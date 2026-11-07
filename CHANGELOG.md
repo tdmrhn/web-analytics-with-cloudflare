@@ -1,9 +1,21 @@
 # Changelog
 
-## [0.3.1] - 2026-11-06
+## [0.5] - 2026-11-07
 
-- One shared cache for the dashboard, widget and admin bar
-- Improved refresh cache when new data arrives
+- Stylesheet reworked on design tokens
+- Chart colors and sizes come from the stylesheet, with light and dark themes
+- Numbered setup steps, clearer settings spacing, ghost "View all" links
+- Layout spacing uses flex and grid gaps instead of margins
+- Shimmer no longer turns off with the system's reduced-motion setting
+
+## [0.4] - 2026-11-06
+
+- Dashboard, widget and admin bar share one cache
+- Widget updates in place as new data arrives
+- Analytics overview loads first after a cache clear; the rest loads in the background
+- Refresh button fetches everything, including yesterday
+- Skeleton loading for cards
+
 
 ## [0.3] - 2026-11-05
 

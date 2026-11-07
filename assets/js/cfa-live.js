@@ -1,7 +1,7 @@
 /**
  * Easy Analytics background refresh.
  *
- * - Runs the refresh queue the page printed (#eacfa-live-config), five jobs per request.
+ * - Runs the refresh queue the page printed (#eacfa-live-config), one job per request.
  * - Reloads a dashboard page once when the refresh brought in new data (never on the front end).
  * - Updates the admin bar counter (#eacfa-bar-config).
  * - Exposes eacfaRunQueue() for jobs that come back from a background section load.
@@ -9,7 +9,7 @@
 (function () {
     'use strict';
 
-    var BATCH = 5;
+    var BATCH = 1; // one job per request, so each finished dataset shows as soon as it is ready
 
     function readConfig(id) {
         var el = document.getElementById(id);
@@ -46,15 +46,8 @@
     }
 
     function finish(changed, failed, reload) {
-        if (changed > 0) {
-            // The dashboard widget redraws itself from the cache; no page reload needed.
-            if (document.getElementById('cfw-root')) {
-                document.dispatchEvent(new CustomEvent('eacfa:refreshed'));
-                resetButtons();
-                return;
-            }
-            if (reload && reloadOnce()) { return; }
-        }
+        // The widget already redrew itself as each job finished; only the analytics page reloads.
+        if (changed > 0 && reload && !document.getElementById('cfw-root') && reloadOnce()) { return; }
 
         resetButtons();
         if (failed > 0 && changed === 0) {
@@ -78,6 +71,11 @@
                     if (res && res.success) {
                         changed += res.data.changed;
                         failed += res.data.failed;
+
+                        // The widget redraws as soon as its data is in, without waiting for the rest.
+                        if (res.data.changed > 0 && document.getElementById('cfw-root')) {
+                            document.dispatchEvent(new CustomEvent('eacfa:refreshed'));
+                        }
                     } else {
                         failed += batch.length;
                     }
@@ -131,8 +129,20 @@
             var jobs = [];
             try { jobs = JSON.parse(queue.jobs) || []; } catch (e) { jobs = []; }
 
+            var priority = parseInt(queue.priority, 10) || 0;
+            var first = jobs.slice(0, priority);
+            var rest = jobs.slice(priority);
+
             setTimeout(function () {
-                runJobs(queue, jobs, function (changed, failed) { finish(changed, failed, !!queue.reload); });
+                // Priority jobs first. The page reloads as soon as they have brought in new data.
+                runJobs(queue, first, function (changed, failed) {
+                    if (changed > 0 && queue.reload && !document.getElementById('cfw-root') && reloadOnce()) { return; }
+
+                    if (!rest.length) { finish(changed, failed, !!queue.reload); return; }
+
+                    // Background jobs. On the reloaded page these run with no further reload.
+                    runJobs(queue, rest, function (c2, f2) { finish(changed + c2, failed + f2, !!queue.reload); });
+                });
             }, 800);
         }
 
