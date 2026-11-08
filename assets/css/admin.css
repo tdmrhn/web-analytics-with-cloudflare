@@ -390,11 +390,11 @@ body.cfa-page .notice-warning { background: var(--cfa-colors-warning-bg); border
 
 .cfa-skeleton { display: flex; flex-direction: column; gap: var(--cfa-sizes-16); }
 .cfa-skel-kpis i { flex: 1 1 var(--cfa-sizes-tile); height: clamp(4rem, 3.5rem + 2vw, 5.375rem); border-radius: var(--cfa-radius-lg); }
+.cfa-skel-kpis.tall i { height: clamp(12.5rem, 11rem + 6vw, 18.75rem); }
 .cfa-skel-kpis i, .cfa-skel-card i, .cfa-skel-inline i {
     background: linear-gradient(90deg, var(--cfa-colors-soft) 25%, var(--cfa-colors-border) 50%, var(--cfa-colors-soft) 75%);
     background-size: 200% 100%; animation: cfw-shimmer var(--cfa-motion-shimmer) infinite linear;
 }
-.cfa-skel-kpis.tall { height: clamp(12.5rem, 11rem + 6vw, 18.75rem); }
 .cfa-skel-card i, .cfa-skel-inline i { display: block; height: var(--cfa-sizes-12); border-radius: var(--cfa-sizes-8); }
 .cfa-skel-card i:nth-child(1), .cfa-skel-inline i:nth-child(1) { width: 60%; }
 .cfa-skel-card i:nth-child(2), .cfa-skel-inline i:nth-child(2) { width: 90%; }
