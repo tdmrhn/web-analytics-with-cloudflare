@@ -237,7 +237,9 @@ body.cfa-theme-dark .cfa-icon-btn .cfa-ico-sun { display: block; }
 .cfa-table th, .cfa-table td { padding: var(--cfa-sizes-12) var(--cfa-sizes-16); border-bottom: var(--cfa-sizes-1) solid var(--cfa-colors-border); text-align: left; vertical-align: middle; }
 .cfa-table th { background: var(--cfa-colors-soft); color: var(--cfa-colors-muted); font-size: var(--cfa-sizes-12); font-weight: 500; white-space: nowrap; }
 .cfa-table tr:last-child td { border-bottom: 0; }
-.cfa-table tbody tr:hover td { background: var(--cfa-colors-soft); }
+.cfa-table tbody tr { background: linear-gradient(90deg, var(--cfa-accent-soft) var(--w, 0%), transparent var(--w, 0%)); }
+.cfa-table tbody tr:hover { background-color: var(--cfa-colors-soft); }
+.cfa-table .is-pct { color: var(--cfa-colors-muted); }
 .cfa-table .is-rank { width: var(--cfa-sizes-32); color: var(--cfa-colors-faint); }
 .cfa-table .is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cfa-table .is-main { max-width: 22.5rem; }

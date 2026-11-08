@@ -466,7 +466,7 @@ function eacfa_list_card($title, $res, $link, $label_cb, $limit = 6) {
  * Table card. $cols: header label => cell class. $rows: arrays of already-escaped cell HTML.
  * Used by Pages, Referrers, Countries and the Core Web Vitals "By page" table.
  */
-function eacfa_table($cols, $rows, $title = '') {
+function eacfa_table($cols, $rows, $title = '', $shares = array()) {
     $classes = array_values($cols);
     ?>
     <section class="cfa-card cfa-table-card">
@@ -479,8 +479,8 @@ function eacfa_table($cols, $rows, $title = '') {
                     <?php foreach ($cols as $label => $class): ?><th class="<?php echo esc_attr($class); ?>"><?php echo esc_html($label); ?></th><?php endforeach; ?>
                 </tr></thead>
                 <tbody>
-                    <?php foreach ($rows as $cells): ?>
-                        <tr><?php foreach (array_values($cells) as $i => $html): ?><td class="<?php echo esc_attr($classes[$i]); ?>"><?php echo $html; // phpcs:ignore WordPress.Security.EscapeOutput -- callers pass escaped HTML. ?></td><?php endforeach; ?></tr>
+					<?php foreach ($rows as $n => $cells): ?>
+                        <tr<?php if (isset($shares[$n])): ?> style="--w: <?php echo esc_attr($shares[$n]); ?>%"<?php endif; ?>><?php foreach (array_values($cells) as $i => $html): ?><td class="<?php echo esc_attr($classes[$i]); ?>"><?php echo $html; // phpcs:ignore WordPress.Security.EscapeOutput -- callers pass escaped HTML. ?></td><?php endforeach; ?></tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -500,19 +500,20 @@ function eacfa_table_card($res, $first_col, $label_cb) {
 
     $list = isset($res['rows']) ? $res['rows'] : array();
     $total = eacfa_total($list);
-    $rows = array();
+    $rows = $shares = array();
     foreach ($list as $i => $r) {
         $share = eacfa_share($r['views'], $total);
+        $shares[] = round($share, 1);
         $rows[] = array(
             (int) ($i + 1),
             wp_kses_post(call_user_func($label_cb, $r)),
+            esc_html(EACFA_Live::pct_text($share)),
             esc_html(eacfa_num($r['views'])),
             esc_html(eacfa_num($r['visits'])),
-            '<span class="cfa-pbar"><i style="width: ' . esc_attr(round($share, 1)) . '%"></i><b>' . esc_html(EACFA_Live::pct_text($share)) . '</b></span>',
         );
     }
 
-    eacfa_table(array('#' => 'is-rank', $first_col => 'is-main', 'Page views' => 'is-num', 'Visits' => 'is-num', 'Share' => 'is-share'), $rows);
+    eacfa_table(array('#' => 'is-rank', $first_col => 'is-main', 'Share' => 'is-num is-pct', 'Page views' => 'is-num', 'Visits' => 'is-num'), $rows, '', $shares);
 }
 
 /**
