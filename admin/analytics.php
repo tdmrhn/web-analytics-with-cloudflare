@@ -408,6 +408,26 @@ function eacfa_country_label($code) {
     return ($code === '') ? 'Unknown' : EACFA_API::get_country_name($code);
 }
 
+/** Label callbacks shared by the list cards and tables */
+function eacfa_plain_label($row) {
+    return '<strong>' . esc_html($row['key'] === '' ? 'Unknown' : $row['key']) . '</strong>';
+}
+
+function eacfa_page_label($row) {
+    if (!empty($row['title'])) {
+        return '<strong>' . esc_html($row['title']) . '</strong><small>' . esc_html($row['key']) . '</small>';
+    }
+    return '<strong>' . esc_html($row['key'] === '' ? '/' : $row['key']) . '</strong>';
+}
+
+function eacfa_referrer_label($row) {
+    return '<strong>' . esc_html($row['key'] === '' ? 'Direct / none' : $row['key']) . '</strong>';
+}
+
+function eacfa_country_row_label($row) {
+    return '<strong>' . esc_html(eacfa_country_label($row['key'])) . '</strong>';
+}
+
 /**
  * Ranked list with share bars
  */
@@ -431,7 +451,7 @@ function eacfa_list_card($title, $res, $link, $label_cb, $limit = 6) {
             <ul class="cfa-list">
                 <?php foreach (array_slice($res['rows'], 0, $limit) as $row): ?>
                     <li>
-                        <span class="cfa-list-bar" style="width: <?php echo esc_attr(round(($row['views'] / $max) * 100, 1)); ?>%"></span>
+                        <span class="cfa-list-bar" style="width: <?php echo esc_attr(round(eacfa_share($row['views'], $total), 1)); ?>%"></span>
                         <span class="cfa-list-label"><?php echo wp_kses_post(call_user_func($label_cb, $row)); ?></span>
                         <span class="cfa-list-value"><?php echo esc_html(eacfa_num($row['views'])); ?> <em><?php echo esc_html(EACFA_Live::pct_text(eacfa_share($row['views'], $total))); ?></em></span>
                     </li>
@@ -442,12 +462,30 @@ function eacfa_list_card($title, $res, $link, $label_cb, $limit = 6) {
     <?php
 }
 
-function eacfa_views_cell($row, $max, $total) {
+/**
+ * Table card. $cols: header label => cell class. $rows: arrays of already-escaped cell HTML.
+ * Used by Pages, Referrers, Countries and the Core Web Vitals "By page" table.
+ */
+function eacfa_table($cols, $rows, $title = '') {
+    $classes = array_values($cols);
     ?>
-    <td class="is-bar">
-        <span class="cfa-bar"><i style="width: <?php echo esc_attr(round(($row['views'] / $max) * 100, 1)); ?>%"></i></span>
-        <span class="cfa-bar-num"><?php echo esc_html(eacfa_num($row['views'])); ?> <em><?php echo esc_html(EACFA_Live::pct_text(eacfa_share($row['views'], $total))); ?></em></span>
-    </td>
+    <section class="cfa-card cfa-table-card">
+        <?php if ($title): ?><div class="cfa-card-head"><h3><?php echo wp_kses_post($title); ?></h3></div><?php endif; ?>
+        <?php if (!$rows): ?>
+            <div class="cfa-empty">No data for this period yet.</div>
+        <?php else: ?>
+            <table class="cfa-table">
+                <thead><tr>
+                    <?php foreach ($cols as $label => $class): ?><th class="<?php echo esc_attr($class); ?>"><?php echo esc_html($label); ?></th><?php endforeach; ?>
+                </tr></thead>
+                <tbody>
+                    <?php foreach ($rows as $cells): ?>
+                        <tr><?php foreach (array_values($cells) as $i => $html): ?><td class="<?php echo esc_attr($classes[$i]); ?>"><?php echo $html; // phpcs:ignore WordPress.Security.EscapeOutput -- callers pass escaped HTML. ?></td><?php endforeach; ?></tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </section>
     <?php
 }
 
@@ -460,50 +498,22 @@ function eacfa_table_card($res, $first_col, $label_cb) {
         return;
     }
 
-    if (empty($res['rows'])) {
-        echo '<div class="cfa-empty">No data for this period yet.</div>';
-        return;
+    $list = isset($res['rows']) ? $res['rows'] : array();
+    $total = eacfa_total($list);
+    $rows = array();
+    foreach ($list as $i => $r) {
+        $share = eacfa_share($r['views'], $total);
+        $rows[] = array(
+            (int) ($i + 1),
+            wp_kses_post(call_user_func($label_cb, $r)),
+            esc_html(eacfa_num($r['views'])),
+            esc_html(eacfa_num($r['visits'])),
+            '<span class="cfa-pbar"><i style="width: ' . esc_attr(round($share, 1)) . '%"></i><b>' . esc_html(EACFA_Live::pct_text($share)) . '</b></span>',
+        );
     }
 
-    $total = eacfa_total($res['rows']);
-    $max = max(1, $res['rows'][0]['views']);
-    ?>
-    <section class="cfa-card cfa-table-card">
-        <table class="cfa-table">
-            <thead>
-                <tr>
-                    <th class="is-rank">#</th>
-                    <th><?php echo esc_html($first_col); ?></th>
-                    <th>Page views</th>
-                    <th class="is-num">Visits</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($res['rows'] as $i => $row): ?>
-                    <tr>
-                        <td class="is-rank"><?php echo (int) ($i + 1); ?></td>
-                        <td class="is-main"><?php echo wp_kses_post(call_user_func($label_cb, $row)); ?></td>
-                        <?php eacfa_views_cell($row, $max, $total); ?>
-                        <td class="is-num"><?php echo esc_html(eacfa_num($row['visits'])); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </section>
-    <?php
+    eacfa_table(array('#' => 'is-rank', $first_col => 'is-main', 'Page views' => 'is-num', 'Visits' => 'is-num', 'Share' => 'is-share'), $rows);
 }
-
-function eacfa_page_label($row) {
-    if (!empty($row['title'])) {
-        return '<strong>' . esc_html($row['title']) . '</strong><small>' . esc_html($row['key']) . '</small>';
-    }
-    return '<strong>' . esc_html($row['key'] === '' ? '/' : $row['key']) . '</strong>';
-}
-
-function eacfa_referrer_label($row) {
-    return '<strong>' . esc_html($row['key'] === '' ? 'Direct / none' : $row['key']) . '</strong>';
-}
-
 
 /**
  * Placeholder shown while a section loads in the background
@@ -814,17 +824,12 @@ function eacfa_render_overview($range) {
         <div class="cfa-chart"><div id="cfa-chart" data-chart="<?php echo esc_attr(wp_json_encode($chart)); ?>"></div></div>
     </section>
 
-
     <div class="cfa-grid">
         <?php
         eacfa_list_card('Top pages', EACFA_Live::top_pages($range, 6), eacfa_url(array('section' => 'pages', 'range' => $range)), 'eacfa_page_label');
         eacfa_list_card('Referrers', EACFA_Live::breakdown($range, 'refererHost', 20), eacfa_url(array('section' => 'referrers', 'range' => $range)), 'eacfa_referrer_label');
-        eacfa_list_card('Countries', EACFA_Live::breakdown($range, 'countryName', 30), eacfa_url(array('section' => 'countries', 'range' => $range)), function ($row) {
-            return '<strong>' . esc_html(eacfa_country_label($row['key'])) . '</strong>';
-        });
-        eacfa_list_card('Browsers', EACFA_Live::breakdown($range, 'userAgentBrowser', 20), eacfa_url(array('section' => 'technology', 'range' => $range)), function ($row) {
-            return '<strong>' . esc_html($row['key'] === '' ? 'Unknown' : $row['key']) . '</strong>';
-        });
+        eacfa_list_card('Countries', EACFA_Live::breakdown($range, 'countryName', 30), eacfa_url(array('section' => 'countries', 'range' => $range)), 'eacfa_country_row_label');
+        eacfa_list_card('Browsers', EACFA_Live::breakdown($range, 'userAgentBrowser', 20), eacfa_url(array('section' => 'technology', 'range' => $range)), 'eacfa_plain_label');
         ?>
     </div>
     <?php
@@ -850,20 +855,17 @@ function eacfa_render_referrers($range) {
 function eacfa_render_countries($range) {
     $res = EACFA_Live::breakdown($range, 'countryName', 100);
     eacfa_table_card($res, 'Country', function ($row) {
-        return '<strong>' . esc_html(eacfa_country_label($row['key'])) . '</strong>' . ($row['key'] !== '' ? '<small>' . esc_html($row['key']) . '</small>' : '');
+        return eacfa_country_row_label($row) . ($row['key'] !== '' ? '<small>' . esc_html($row['key']) . '</small>' : '');
     });
     return array('fetched_at' => isset($res['fetched_at']) ? $res['fetched_at'] : 0);
 }
 
 function eacfa_render_technology($range) {
     $browsers = EACFA_Live::breakdown($range, 'userAgentBrowser', 20);
-    $label = function ($row) {
-        return '<strong>' . esc_html($row['key'] === '' ? 'Unknown' : $row['key']) . '</strong>';
-    };
 
     echo '<div class="cfa-grid">';
-    eacfa_list_card('Browsers', $browsers, '', $label, 12);
-    eacfa_list_card('Operating systems', EACFA_Live::breakdown($range, 'userAgentOS', 20), '', $label, 12);
+    eacfa_list_card('Browsers', $browsers, '', 'eacfa_plain_label', 12);
+    eacfa_list_card('Operating systems', EACFA_Live::breakdown($range, 'userAgentOS', 20), '', 'eacfa_plain_label', 12);
     echo '</div>';
     eacfa_list_card('Devices', EACFA_Live::breakdown($range, 'deviceType', 10), '', function ($row) {
         return '<strong>' . esc_html($row['key'] === '' ? 'Unknown' : ucfirst($row['key'])) . '</strong>';
@@ -933,20 +935,17 @@ function eacfa_render_vitals($range) {
 
             <?php if (!empty($m['subparts'])):
                 $parts_total = array_sum($m['subparts']);
-                $i = 0;
                 ?>
                 <div class="cfa-subparts">
                     <div class="cfa-subparts-title">Sub-parts <span class="cfa-muted">(P75)</span></div>
                     <div class="cfa-stack" role="img" aria-label="<?php echo esc_attr($text[1]); ?> sub-parts">
-                        <?php foreach ($m['subparts'] as $label => $ms): ?>
-                            <i style="width: <?php echo esc_attr(round(eacfa_share($ms, $parts_total), 2)); ?>%; background: <?php echo esc_attr($subpart_colors[$i % 4]); ?>;" title="<?php echo esc_attr($label . ': ' . number_format_i18n($ms) . 'ms'); ?>"></i>
-                            <?php $i++; ?>
+                        <?php $i = 0; foreach ($m['subparts'] as $label => $ms): ?>
+                            <i style="width: <?php echo esc_attr(round(eacfa_share($ms, $parts_total), 2)); ?>%; background: <?php echo esc_attr($subpart_colors[$i++ % 4]); ?>;" title="<?php echo esc_attr($label . ': ' . number_format_i18n($ms) . 'ms'); ?>"></i>
                         <?php endforeach; ?>
                     </div>
                     <div class="cfa-stack-legend">
                         <?php $i = 0; foreach ($m['subparts'] as $label => $ms): ?>
-                            <span><i style="background: <?php echo esc_attr($subpart_colors[$i % 4]); ?>;"></i><?php echo esc_html($label); ?> <b><?php echo esc_html(number_format_i18n($ms)); ?>ms</b> <em><?php echo esc_html(EACFA_Live::pct_text(eacfa_share($ms, $parts_total))); ?></em></span>
-                            <?php $i++; ?>
+                            <span><i style="background: <?php echo esc_attr($subpart_colors[$i++ % 4]); ?>;"></i><?php echo esc_html($label); ?> <b><?php echo esc_html(number_format_i18n($ms)); ?>ms</b> <em><?php echo esc_html(EACFA_Live::pct_text(eacfa_share($ms, $parts_total))); ?></em></span>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -957,40 +956,27 @@ function eacfa_render_vitals($range) {
 
     // By page
     $pages = EACFA_Live::vitals_by_page($range);
-    ?>
-    <section class="cfa-card cfa-table-card">
-        <div class="cfa-card-head"><h3>By page <span class="cfa-muted">(P75)</span></h3></div>
-        <?php if (empty($pages['success'])): ?>
+
+    if (empty($pages['success'])) {
+        ?>
+        <section class="cfa-card cfa-table-card">
+            <div class="cfa-card-head"><h3>By page <span class="cfa-muted">(P75)</span></h3></div>
             <div class="cfa-empty">Per-page vitals aren&rsquo;t available right now. <?php echo esc_html(isset($pages['message']) ? $pages['message'] : ''); ?></div>
-        <?php elseif (empty($pages['rows'])): ?>
-            <div class="cfa-empty">No data for this period yet.</div>
-        <?php else: ?>
-            <table class="cfa-table">
-                <thead>
-                    <tr>
-                        <th>Page</th>
-                        <th class="is-num">Samples</th>
-                        <th class="is-num">LCP</th>
-                        <th class="is-num">INP</th>
-                        <th class="is-num">CLS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($pages['rows'] as $row): ?>
-                        <tr>
-                            <td class="is-main"><strong><?php echo esc_html($row['key'] === '' ? '/' : $row['key']); ?></strong></td>
-                            <td class="is-num"><?php echo esc_html(eacfa_num($row['count'])); ?></td>
-                            <?php foreach (array('lcp', 'inp', 'cls') as $metric):
-                                $rate = EACFA_Live::rating($metric, $row[$metric]);
-                                ?>
-                                <td class="is-num"><span class="cfa-dot <?php echo $rate ? 'is-' . esc_attr($rate) : ''; ?>"></span> <?php echo esc_html(EACFA_Live::vital_text($metric, $row[$metric])); ?></td>
-                            <?php endforeach; ?>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
-    </section>
-    <?php
+        </section>
+        <?php
+    } else {
+        $rows = array();
+        $page_rows = isset($pages['rows']) ? $pages['rows'] : array();
+        foreach ($page_rows as $r) {
+            $cells = array('<strong>' . esc_html($r['key'] === '' ? '/' : $r['key']) . '</strong>', esc_html(eacfa_num($r['count'])));
+            foreach (array('lcp', 'inp', 'cls') as $metric) {
+                $rate = EACFA_Live::rating($metric, $r[$metric]);
+                $cells[] = '<span class="cfa-dot ' . ($rate ? 'is-' . esc_attr($rate) : '') . '"></span> ' . esc_html(EACFA_Live::vital_text($metric, $r[$metric]));
+            }
+            $rows[] = $cells;
+        }
+        eacfa_table(array('Page' => 'is-main', 'Samples' => 'is-num', 'LCP' => 'is-num', 'INP' => 'is-num', 'CLS' => 'is-num'), $rows, 'By page <span class="cfa-muted">(P75)</span>');
+    }
+
     return $meta;
 }
