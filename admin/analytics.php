@@ -523,7 +523,7 @@ function eacfa_skeleton() {
     ?>
     <div class="cfa-skeleton" aria-busy="true" aria-label="Loading">
         <div class="cfa-skel-kpis"><i></i><i></i><i></i><i></i></div>
-        <div class="cfa-skel-card tall"><i></i></div>
+        <div class="cfa-skel-kpis tall"><i></i></div>
         <div class="cfa-skel-grid"><div class="cfa-skel-card"><i></i><i></i><i></i></div><div class="cfa-skel-card"><i></i><i></i><i></i></div></div>
     </div>
     <?php

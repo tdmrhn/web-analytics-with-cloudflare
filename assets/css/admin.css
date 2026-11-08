@@ -234,7 +234,7 @@ body.cfa-theme-dark .cfa-icon-btn .cfa-ico-sun { display: block; }
 .cfa-pbar b { position: relative; display: block; padding: 0 var(--cfa-sizes-8); line-height: var(--cfa-sizes-20); text-align: right; font-size: var(--cfa-sizes-12); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .cfa-table { width: 100%; border-collapse: collapse; font-size: var(--cfa-sizes-14); }
-.cfa-table th, .cfa-table td { padding: var(--cfa-sizes-12) var(--cfa-sizes-16); border-bottom: var(--cfa-sizes-1) solid var(--cfa-colors-border); text-align: left; vertical-align: middle; }
+.cfa-table th, .cfa-table td { padding: var(--cfa-sizes-10) var(--cfa-sizes-12); border-bottom: var(--cfa-sizes-1) solid var(--cfa-colors-border); text-align: left; vertical-align: middle; }
 .cfa-table th { background: var(--cfa-colors-soft); color: var(--cfa-colors-muted); font-size: var(--cfa-sizes-12); font-weight: 500; white-space: nowrap; }
 .cfa-table tr:last-child td { border-bottom: 0; }
 .cfa-table tbody tr { background: linear-gradient(90deg, var(--cfa-accent-soft) var(--w, 0%), transparent var(--w, 0%)); }
@@ -389,18 +389,18 @@ body.cfa-page .notice-warning { background: var(--cfa-colors-warning-bg); border
 /* ---------- Skeletons: every block is an <i> with the same shimmer ---------- */
 
 .cfa-skeleton { display: flex; flex-direction: column; gap: var(--cfa-sizes-16); }
-.cfa-skel-kpis { background: var(--cfa-colors-surface); padding: var(--cfa-sizes-12) var(--cfa-sizes-18); }
 .cfa-skel-kpis i { flex: 1 1 var(--cfa-sizes-tile); height: clamp(4rem, 3.5rem + 2vw, 5.375rem); border-radius: var(--cfa-radius-lg); }
 .cfa-skel-kpis i, .cfa-skel-card i, .cfa-skel-inline i {
     background: linear-gradient(90deg, var(--cfa-colors-soft) 25%, var(--cfa-colors-border) 50%, var(--cfa-colors-soft) 75%);
     background-size: 200% 100%; animation: cfw-shimmer var(--cfa-motion-shimmer) infinite linear;
 }
+.cfa-skel-kpis.tall { height: clamp(12.5rem, 11rem + 6vw, 18.75rem); }
 .cfa-skel-card i, .cfa-skel-inline i { display: block; height: var(--cfa-sizes-12); border-radius: var(--cfa-sizes-8); }
 .cfa-skel-card i:nth-child(1), .cfa-skel-inline i:nth-child(1) { width: 60%; }
 .cfa-skel-card i:nth-child(2), .cfa-skel-inline i:nth-child(2) { width: 90%; }
 .cfa-skel-card i:nth-child(3), .cfa-skel-inline i:nth-child(3) { width: 75%; }
 .cfa-skel-card { display: flex; flex-direction: column; gap: var(--cfa-sizes-8); height: clamp(10rem, 9rem + 4vw, 13.75rem); padding: var(--cfa-sizes-18); background: var(--cfa-colors-surface); border: var(--cfa-sizes-1) solid var(--cfa-colors-border); border-radius: var(--cfa-radius-lg); }
-.cfa-skel-card.tall { height: clamp(12.5rem, 11rem + 6vw, 18.75rem); }
+
 .cfa-skel-card.tall > i:nth-child(1) { flex: 1; width: 100%; min-height: 8rem; height: auto; }
 .cfa-skel-inline { display: flex; flex-direction: column; gap: var(--cfa-sizes-8); }
 /* widget loading placeholder */
